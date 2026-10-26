@@ -2,17 +2,19 @@ import { useState } from 'preact/hooks';
 import { app, loaded, storageError } from './data/store';
 import { applyUpdate, updateAvailable } from './pwa';
 import { Body } from './screens/Body';
+import { Machines } from './screens/Machines';
 import { Progress } from './screens/Progress';
 import { Settings } from './screens/Settings';
 import { Today } from './screens/Today';
 import { RestTimer } from './ui/timer';
 
-type Tab = 'today' | 'body' | 'progress' | 'settings';
+type Tab = 'today' | 'body' | 'progress' | 'machines' | 'settings';
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'today', icon: '⚡', label: 'Hoje' },
   { id: 'body', icon: '📐', label: 'Corpo' },
   { id: 'progress', icon: '📈', label: 'Evolução' },
+  { id: 'machines', icon: '🏋️', label: 'Máquinas' },
   { id: 'settings', icon: '⚙️', label: 'Ajustes' },
 ];
 
@@ -38,6 +40,7 @@ export function App() {
         {tab === 'today' && <Today />}
         {tab === 'body' && <Body />}
         {tab === 'progress' && <Progress />}
+        {tab === 'machines' && <Machines />}
         {tab === 'settings' && <Settings />}
       </main>
       <RestTimer />

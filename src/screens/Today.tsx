@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { discardSession, finishSession, logSet, removeSet, startSession, upsertCheckIn } from '../data/actions';
 import { app } from '../data/store';
-import { EXERCISES, exerciseById } from '../domain/exercises';
-import { performanceHistory, sessionRecords, sessionTotals, suggestSplit } from '../domain/history';
-import { ACTION_LABEL, DAY_LOAD_LABEL, SORENESS_LABEL, SPLIT_HINT, SPLIT_LABEL, SPLIT_ORDER, TIER_LABEL } from '../domain/labels';
-import { buildPlan } from '../domain/planner';
+import { activeLibrary, exerciseById } from '../domain/exercises';
+import { performanceHistory, sessionRecords, sessionTotals } from '../domain/history';
+import { ACTION_LABEL, DAY_LOAD_LABEL, SIDE_LABEL, SORENESS_LABEL, SPLIT_HINT, SPLIT_LABEL, SPLIT_ORDER, TIER_LABEL } from '../domain/labels';
+import { buildPlan, nextSide, setCount } from '../domain/planner';
 import { assessReadiness } from '../domain/readiness';
-import type { CheckIn, DayLoad, Exercise, PlannedExercise, Readiness, Session, SorenessArea, SplitId } from '../domain/types';
+import { dayDefaults, latestBilateral } from '../domain/routine';
+import type { CheckIn, CorrectiveBlock, DayLoad, Exercise, PlannedExercise, Readiness, Session, SetLog, Side, SorenessArea, SplitId } from '../domain/types';
 import { formatBR, localISODate } from '../lib/date';
 import { useWakeLock } from '../lib/device';
 import { fmtDuration, fmtNum } from '../lib/format';
@@ -16,11 +17,13 @@ import { ObsidianActions } from '../ui/ObsidianActions';
 import { RestPresets, startRest } from '../ui/timer';
 import { ProfileForm } from './Settings';
 
-const fmtLoad = (load: number | null, ex: Exercise) => {
+export const fmtLoad = (load: number | null, ex: Exercise) => {
   if (load === null) return ex.equipment === 'bodyweight' ? 'peso corporal' : 'carga a definir';
   if (ex.equipment === 'bodyweight') return load > 0 ? `lastro ${fmtNum(load)} kg` : 'peso corporal';
   return `${fmtNum(load)} ${ex.loadUnit}`;
 };
+
+const sideTag = (s?: Side) => (s ? (s === 'L' ? 'E' : 'D') : '');
 
 export function Today() {
   const s = app.value;
@@ -34,7 +37,7 @@ export function Today() {
     return (
       <>
         <Notice tone="info" title="Bem-vindo ao Adaptive Fit">
-          Preencha o perfil uma vez: sexo e idade alimentam as fórmulas de composição corporal, e o cuidado com a coluna filtra exercícios automaticamente.
+          Preencha o perfil uma vez: sexo e idade alimentam as fórmulas de composição corporal; coluna e escoliose ajustam os exercícios e o aquecimento.
         </Notice>
         <ProfileForm />
       </>
@@ -55,31 +58,37 @@ export function Today() {
 }
 
 function newCheckIn(date: string): CheckIn {
-  const { checkIns, sessions } = app.value;
+  const { checkIns, sessions, settings } = app.value;
   const last = checkIns.at(-1);
+  const d = dayDefaults(date, settings.week, last, sessions, SPLIT_ORDER);
   return {
     id: uid(),
     date,
     sleepHours: last?.sleepHours ?? 7,
     sleepQuality: 3,
     energy: 3,
-    dayLoad: last?.dayLoad ?? 'light',
-    timeAvailMin: last?.timeAvailMin ?? 60,
+    dayLoad: d.dayLoad,
+    timeAvailMin: d.timeAvailMin,
     soreness: [],
     spineAlert: false,
-    split: suggestSplit(sessions, date, SPLIT_ORDER).split,
+    split: d.split,
   };
 }
 
 function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void }) {
   const [c, setC] = useState(initial);
   const set = <K extends keyof CheckIn>(k: K, v: CheckIn[K]) => setC((prev) => ({ ...prev, [k]: v }));
-  const profile = app.value.profile;
+  const { profile, settings, checkIns, sessions } = app.value;
   const preview = assessReadiness(c, profile);
-  const suggestion = suggestSplit(app.value.sessions, c.date, SPLIT_ORDER);
+  const defaults = dayDefaults(c.date, settings.week, checkIns.at(-1), sessions, SPLIT_ORDER);
 
   return (
     <Card title="Check-in de prontidão" aside={formatBR(c.date)}>
+      {defaults.restDay && (
+        <Notice tone="info" title="Dia de descanso na sua rotina">
+          Se quiser treinar mesmo assim, o plano se ajusta à sua prontidão.
+        </Notice>
+      )}
       <div class="grid-2">
         <NumField label="Horas de sono" suffix="h" value={c.sleepHours} onChange={(v) => set('sleepHours', v ?? 0)} />
         <NumField label="Tempo para treinar" suffix="min" value={c.timeAvailMin} onChange={(v) => set('timeAvailMin', v ?? 0)} />
@@ -102,14 +111,15 @@ function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void
         <Toggle label="Alerta lombar hoje" hint="Bloqueia carga axial só nesta sessão." checked={c.spineAlert} onChange={(v) => set('spineAlert', v)} />
       )}
       <Choice<SplitId>
-        label="Foco da sessão"
+        label="Treino do dia"
+        cols={3}
         value={c.split}
         onChange={(v) => set('split', v)}
         options={SPLIT_ORDER.map((k) => ({
           value: k,
           label: SPLIT_LABEL[k],
           hint: SPLIT_HINT[k],
-          badge: k === suggestion.split ? 'sugerido' : undefined,
+          badge: k === defaults.split ? (defaults.source === 'routine' ? 'rotina' : 'sugerido') : undefined,
         }))}
       />
       <div class={`live-score tier-${preview.tier}`}>
@@ -131,18 +141,20 @@ function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void
 }
 
 function usePlan(checkIn: CheckIn) {
-  const { profile, sessions, settings } = app.value;
+  const { profile, sessions, settings, customExercises, assessments } = app.value;
   const readiness = useMemo(() => assessReadiness(checkIn, profile), [checkIn, profile]);
   const plan = useMemo(
     () =>
       buildPlan({
         checkIn,
         readiness,
-        exercises: EXERCISES,
+        exercises: activeLibrary(customExercises, settings.hiddenExercises),
         historyFor: (id) => performanceHistory(sessions, id),
         refLoads: settings.refLoads,
+        profile,
+        perimeters: latestBilateral(assessments)?.perimeters,
       }),
-    [checkIn, readiness, sessions, settings.refLoads],
+    [checkIn, readiness, sessions, settings, customExercises, assessments, profile],
   );
   return { readiness, plan };
 }
@@ -161,6 +173,33 @@ function ScoreRing({ readiness }: { readiness: Readiness }) {
         <small>{TIER_LABEL[readiness.tier]}</small>
       </div>
     </div>
+  );
+}
+
+function CorrectiveCard({ block, checkable }: { block: CorrectiveBlock; checkable?: boolean }) {
+  const [done, setDone] = useState<string[]>([]);
+  return (
+    <Card title={block.title} aside={`~${block.minutes} min`} class="corrective">
+      <ul class="corrective-list">
+        {block.items.map((it) => (
+          <li key={it.id} class={done.includes(it.id) ? 'done' : ''}>
+            {checkable && (
+              <input
+                type="checkbox"
+                aria-label={`Feito: ${it.title}`}
+                checked={done.includes(it.id)}
+                onChange={(e) => setDone((d) => (e.currentTarget.checked ? [...d, it.id] : d.filter((x) => x !== it.id)))}
+              />
+            )}
+            <div>
+              <strong>{it.title}</strong> <span class="dose">{it.dose}</span>
+              <p>{it.how}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p class="muted small">{block.disclaimer}</p>
+    </Card>
   );
 }
 
@@ -199,6 +238,8 @@ function PlanView({ checkIn, onEdit, trainedToday }: { checkIn: CheckIn; onEdit:
         </Card>
       )}
 
+      {plan.corrective && <CorrectiveCard block={plan.corrective} />}
+
       <Card title={`Plano · ${SPLIT_LABEL[checkIn.split]}`} aside={`~${plan.estimatedMin} min`}>
         <ol class="plan-list">
           {plan.items.map((it) => (
@@ -224,6 +265,13 @@ function PlanView({ checkIn, onEdit, trainedToday }: { checkIn: CheckIn; onEdit:
   );
 }
 
+function setsLabel(item: PlannedExercise, ex: Exercise) {
+  const reps = `${ex.repMin}–${ex.repMax}`;
+  if (!item.perSide) return `${item.sets} × ${reps}`;
+  const extra = item.extraSet && item.weakSide ? ` +1 no ${SIDE_LABEL[item.weakSide]}` : '';
+  return `${item.sets} × ${reps} por lado${extra}`;
+}
+
 function PlanRow({ item }: { item: PlannedExercise }) {
   const ex = exerciseById(item.exerciseId)!;
   const partner = item.supersetWith ? exerciseById(item.supersetWith) : undefined;
@@ -235,14 +283,16 @@ function PlanRow({ item }: { item: PlannedExercise }) {
         <span class={`action ${item.target.action}`}>{ACTION_LABEL[item.target.action]}</span>
       </div>
       <div class="plan-meta">
-        {item.sets} × {ex.repMin}–{ex.repMax} · {fmtLoad(item.target.load, ex)} · descanso {item.restSec}s
+        {setsLabel(item, ex)} · {fmtLoad(item.target.load, ex)} · descanso {item.restSec}s
       </div>
-      {(partner || replaced) && (
+      {(partner || replaced || ex.photo) && (
         <div class="tags">
+          {ex.photo && <img class="thumb" src={ex.photo} alt="" />}
           {partner && <span class="tag">super-série com {partner.name}</span>}
           {replaced && <span class="tag">no lugar de {replaced.name}</span>}
         </div>
       )}
+      {item.note && <div class="tag warn">{item.note}</div>}
       <div class="plan-reason">{item.target.reason}</div>
     </li>
   );
@@ -261,13 +311,15 @@ function ActiveSession({ session }: { session: Session }) {
   useWakeLock(true);
   const now = useNow(1000);
   const done = session.entries.reduce((a, e) => a + e.sets.length, 0);
-  const planned = session.plan.reduce((a, p) => a + p.sets, 0);
+  const planned = session.plan.reduce((a, p) => a + setCount(p), 0);
 
   return (
     <>
       <div class="session-head">
         <div>
-          <small>{SPLIT_LABEL[session.split]} · {TIER_LABEL[session.tier]}</small>
+          <small>
+            {SPLIT_LABEL[session.split]} · {TIER_LABEL[session.tier]}
+          </small>
           <strong>{fmtDuration(now - session.startedAt)}</strong>
         </div>
         <div class="session-progress">
@@ -280,6 +332,7 @@ function ActiveSession({ session }: { session: Session }) {
         </div>
       </div>
       <RestPresets />
+      {session.corrective && <CorrectiveCard block={session.corrective} checkable />}
       {session.rules.length > 0 && (
         <details class="card rules-collapsed">
           <summary>Diretrizes do dia ({session.rules.length})</summary>
@@ -307,6 +360,7 @@ function ActiveSession({ session }: { session: Session }) {
           onClick={() => {
             if (done === 0 && !confirm('Nenhuma série registrada. Finalizar mesmo assim?')) return;
             finishSession(session.id);
+            window.scrollTo({ top: 0 });
           }}
         >
           Finalizar treino
@@ -322,31 +376,45 @@ function ExerciseLogger({ session, item }: { session: Session; item: PlannedExer
   const last = sets.at(-1);
   const [load, setLoad] = useState<number | undefined>(last?.load ?? item.target.load ?? undefined);
   const [reps, setReps] = useState<number | undefined>(last?.reps ?? item.target.reps);
-  const complete = sets.length >= item.sets;
+  const [sideOverride, setSideOverride] = useState<Side | null>(null);
+  const side = item.perSide ? (sideOverride ?? nextSide(sets, item)) : undefined;
+  const total = setCount(item);
+  const complete = sets.length >= total;
   const order = session.plan.map((p) => p.exerciseId);
   const firstOfPair = item.supersetWith !== undefined && order.indexOf(ex.id) < order.indexOf(item.supersetWith);
   const partner = item.supersetWith ? exerciseById(item.supersetWith) : undefined;
 
   const log = () => {
     if (!reps || reps <= 0) return;
-    logSet(session.id, ex.id, { load: load ?? 0, reps, at: Date.now() });
-    if (!firstOfPair) startRest(item.restSec, `Descanso · ${ex.name}`);
+    const set: SetLog = { load: load ?? 0, reps, at: Date.now(), ...(side ? { side } : {}) };
+    logSet(session.id, ex.id, set);
+    setSideOverride(null);
+    if (firstOfPair) return;
+    if (side) {
+      const after = [...sets, set];
+      const n = (s: Side) => after.filter((x) => x.side === s).length;
+      // descansa quando os dois lados estão empatados ou o outro lado já terminou
+      if (n('L') !== n('R') && nextSide(after, item) !== side) return;
+    }
+    startRest(item.restSec, `Descanso · ${ex.name}`);
   };
 
   return (
     <section class={`card logger ${complete ? 'complete' : ''}`}>
       <div class="logger-head">
-        <div>
+        {ex.photo && <img class="thumb lg" src={ex.photo} alt={`Foto: ${ex.name}`} />}
+        <div class="grow">
           <strong>{ex.name}</strong>
           <div class="muted small">
-            Alvo: {item.sets} × {item.target.reps}–{ex.repMax} · {fmtLoad(item.target.load, ex)}
+            Alvo: {setsLabel(item, ex)} · {item.target.reps}+ reps · {fmtLoad(item.target.load, ex)}
           </div>
         </div>
         <span class="count">
-          {sets.length}/{item.sets}
+          {sets.length}/{total}
         </span>
       </div>
       {partner && <div class="tag">{firstOfPair ? `Super-série: vá direto para ${partner.name}` : `Super-série com ${partner.name}: descanse agora`}</div>}
+      {item.note && <div class="tag warn">{item.note}</div>}
       {ex.cue && <div class="cue">{ex.cue}</div>}
       {sets.length > 0 && (
         <div class="set-pills">
@@ -357,7 +425,18 @@ function ExerciseLogger({ session, item }: { session: Session; item: PlannedExer
               title="Toque para remover"
               onClick={() => confirm(`Remover série ${i + 1} (${fmtNum(st.load)} × ${st.reps})?`) && removeSet(session.id, ex.id, i)}
             >
+              {sideTag(st.side) && <i>{sideTag(st.side)}</i>}
               {fmtNum(st.load)}×{st.reps}
+            </button>
+          ))}
+        </div>
+      )}
+      {side && (
+        <div class="side-toggle" role="radiogroup" aria-label="Lado">
+          {(['L', 'R'] as Side[]).map((sd) => (
+            <button key={sd} role="radio" aria-checked={side === sd} class={side === sd ? 'on' : ''} onClick={() => setSideOverride(sd)}>
+              {sd === 'L' ? 'Esquerdo' : 'Direito'}
+              {item.weakSide === sd && <small> · mais fraco</small>}
             </button>
           ))}
         </div>

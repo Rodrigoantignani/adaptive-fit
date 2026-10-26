@@ -1,20 +1,44 @@
-import type { DayLoad, MeasureCondition, PerimeterSite, SkinfoldSite, SorenessArea, SplitId, Target, Tier } from './types';
+import type { DayLoad, Equipment, MeasureCondition, Muscle, PerimeterSite, SkinfoldSite, SorenessArea, SplitId, Target, Tier } from './types';
 
-export const SPLIT_ORDER: SplitId[] = ['upper_full', 'pull', 'push', 'legs'];
+export const SPLIT_ORDER: SplitId[] = ['full_body', 'upper', 'lower'];
 
 export const SPLIT_LABEL: Record<SplitId, string> = {
-  upper_full: 'Superior completo',
-  push: 'Empurrar',
-  pull: 'Puxar',
-  legs: 'Inferiores',
+  full_body: 'Full body',
+  upper: 'Superior',
+  lower: 'Inferior',
 };
 
 export const SPLIT_HINT: Record<SplitId, string> = {
-  upper_full: 'Costas, peito, ombros e braços',
-  push: 'Peito, deltoides e tríceps',
-  pull: 'Dorsais, posterior e bíceps',
-  legs: 'Quadríceps, posteriores, panturrilha',
+  full_body: 'Corpo todo, básicos',
+  upper: 'Peito, costas, ombros, braços',
+  lower: 'Quadríceps, posteriores, panturrilha',
 };
+
+export const WEEKDAY_LABEL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+export const MUSCLE_LABEL: Record<Muscle, string> = {
+  chest: 'Peito',
+  back: 'Costas',
+  front_delt: 'Ombro (frontal)',
+  side_delt: 'Ombro (lateral)',
+  rear_delt: 'Ombro (posterior)',
+  biceps: 'Bíceps',
+  triceps: 'Tríceps',
+  forearm: 'Antebraço',
+  quads: 'Quadríceps',
+  hamstrings: 'Posteriores',
+  calves: 'Panturrilha',
+  core: 'Core',
+};
+
+export const EQUIPMENT_LABEL: Record<Equipment, string> = {
+  machine: 'Máquina',
+  cable: 'Polia / cabo',
+  free: 'Peso livre',
+  bodyweight: 'Peso corporal',
+};
+
+export const SIDE_LABEL = { L: 'esquerdo', R: 'direito' } as const;
 
 export const DAY_LOAD_LABEL: Record<DayLoad, { label: string; hint: string }> = {
   light: { label: 'Leve', hint: 'Escritório / sentado' },

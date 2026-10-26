@@ -1,4 +1,5 @@
 export type Sex = 'M' | 'F';
+export type Side = 'L' | 'R';
 
 export interface Profile {
   name: string;
@@ -8,6 +9,8 @@ export interface Profile {
   heightCm?: number;
   /** Cuidado permanente com a coluna (escoliose, hérnia...): bloqueia carga axial sempre. */
   spineCare: boolean;
+  /** Escoliose: lado do tronco encurtado (côncavo). Gera o bloco corretivo. */
+  scoliosis?: { shortSide: Side } | null;
 }
 
 export type SkinfoldSite =
@@ -59,7 +62,7 @@ export interface BodyAssessment {
   notes?: string;
 }
 
-export type SplitId = 'upper_full' | 'push' | 'pull' | 'legs';
+export type SplitId = 'full_body' | 'upper' | 'lower';
 export type Equipment = 'machine' | 'cable' | 'free' | 'bodyweight';
 export type Muscle =
   | 'chest'
@@ -80,8 +83,14 @@ export interface Exercise {
   name: string;
   /** Músculo principal: usado para achar substitutos. */
   muscle: Muscle;
-  /** Ordem no array = prioridade dentro do split. */
   splits: SplitId[];
+  /** 1 = base do treino (sai por último), 3 = acessório (primeiro a cortar). */
+  priority: 1 | 2 | 3;
+  /** Executado um lado de cada vez: séries registradas por lado. */
+  unilateral: boolean;
+  /** Foto da máquina (data URL JPEG comprimido) para reconhecer na academia. */
+  photo?: string;
+  custom?: boolean;
   equipment: Equipment;
   loadUnit: 'kg' | 'kg/lado';
   /** Degrau de carga da progressão. 0 = progride por reps/técnica. */
@@ -143,6 +152,7 @@ export interface SetLog {
   load: number;
   reps: number;
   at: number;
+  side?: Side;
 }
 
 export interface Target {
@@ -154,18 +164,46 @@ export interface Target {
 
 export interface PlannedExercise {
   exerciseId: string;
+  /** Em exercícios unilaterais: séries por lado. */
   sets: number;
   restSec: number;
   target: Target;
+  perSide?: boolean;
+  /** Lado mais fraco: começa por ele e, se `extraSet`, faz uma série a mais. */
+  weakSide?: Side;
+  extraSet?: boolean;
+  note?: string;
   supersetWith?: string;
   substitutedFor?: string;
 }
 
+export interface CorrectiveItem {
+  id: string;
+  title: string;
+  dose: string;
+  how: string;
+}
+
+export interface CorrectiveBlock {
+  title: string;
+  minutes: number;
+  disclaimer: string;
+  items: CorrectiveItem[];
+}
+
 export interface Plan {
   items: PlannedExercise[];
+  corrective: CorrectiveBlock | null;
   estimatedMin: number;
   rules: Rule[];
   dropped: { exerciseId: string; reason: string }[];
+}
+
+/** Padrão de cada dia da semana; o check-in já nasce preenchido com ele. */
+export interface WeekDay {
+  split: SplitId | 'rest';
+  timeAvailMin: number;
+  dayLoad: DayLoad;
 }
 
 export interface SessionEntry {
@@ -181,6 +219,7 @@ export interface Session {
   readinessScore: number;
   tier: Tier;
   plan: PlannedExercise[];
+  corrective?: CorrectiveBlock | null;
   rules: Rule[];
   entries: SessionEntry[];
   startedAt: number;

@@ -1,19 +1,26 @@
 import { round } from '../lib/format';
-import type { BodyAssessment, CheckIn, MeasureCondition, PerimeterSite, Profile, Session } from '../domain/types';
+import type { BodyAssessment, CheckIn, Exercise, MeasureCondition, PerimeterSite, Profile, Session, SplitId, WeekDay } from '../domain/types';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export interface Settings {
   obsidianVault: string;
   obsidianFolder: string;
+  gymName: string;
   /** Carga inicial por exercício, usada até existir histórico. */
   refLoads: Record<string, number>;
+  /** Exercícios padrão que o usuário tirou da biblioteca. */
+  hiddenExercises: string[];
+  /** Rotina por dia da semana ("0" = domingo). */
+  week: Record<string, WeekDay>;
 }
 
 export interface AppState {
   schemaVersion: typeof SCHEMA_VERSION;
   profile: Profile | null;
   settings: Settings;
+  /** Máquinas cadastradas e edições de exercícios padrão (mesmo id). */
+  customExercises: Exercise[];
   checkIns: CheckIn[];
   sessions: Session[];
   assessments: BodyAssessment[];
@@ -22,11 +29,16 @@ export interface AppState {
 export const emptyState = (): AppState => ({
   schemaVersion: SCHEMA_VERSION,
   profile: null,
-  settings: { obsidianVault: '', obsidianFolder: 'Treino', refLoads: {} },
+  settings: { obsidianVault: '', obsidianFolder: 'Treino', gymName: '', refLoads: {}, hiddenExercises: [], week: {} },
+  customExercises: [],
   checkIns: [],
   sessions: [],
   assessments: [],
 });
+
+/** v1 tinha upper_full / push / pull / legs. */
+const V1_SPLIT: Record<string, SplitId> = { upper_full: 'upper', push: 'upper', pull: 'upper', legs: 'lower' };
+const toSplit = (s: string): SplitId => V1_SPLIT[s] ?? (s as SplitId);
 
 /** Formato do protótipo v2 (array de registros no localStorage). */
 interface LegacyRecord {
@@ -100,17 +112,25 @@ export function fromLegacy(records: unknown[]): BodyAssessment[] {
 export function migrate(raw: unknown): AppState {
   if (raw == null) return emptyState();
   if (Array.isArray(raw)) return { ...emptyState(), assessments: fromLegacy(raw) };
-  const r = raw as Partial<AppState>;
-  if (typeof r !== 'object' || r.schemaVersion !== SCHEMA_VERSION) {
+  const r = raw as Omit<Partial<AppState>, 'schemaVersion'> & { schemaVersion?: number };
+  if (typeof r !== 'object' || (r.schemaVersion !== 1 && r.schemaVersion !== SCHEMA_VERSION)) {
     throw new Error('Formato de dados desconhecido.');
   }
   const base = emptyState();
+  const fromV1 = r.schemaVersion === 1;
   return {
     schemaVersion: SCHEMA_VERSION,
     profile: r.profile ?? null,
-    settings: { ...base.settings, ...r.settings, refLoads: { ...r.settings?.refLoads } },
-    checkIns: r.checkIns ?? [],
-    sessions: r.sessions ?? [],
+    settings: {
+      ...base.settings,
+      ...r.settings,
+      refLoads: { ...r.settings?.refLoads },
+      hiddenExercises: r.settings?.hiddenExercises ?? [],
+      week: r.settings?.week ?? {},
+    },
+    customExercises: r.customExercises ?? [],
+    checkIns: fromV1 ? (r.checkIns ?? []).map((c) => ({ ...c, split: toSplit(c.split) })) : (r.checkIns ?? []),
+    sessions: fromV1 ? (r.sessions ?? []).map((s) => ({ ...s, split: toSplit(s.split) })) : (r.sessions ?? []),
     assessments: r.assessments ?? [],
   };
 }

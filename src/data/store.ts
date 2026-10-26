@@ -1,6 +1,7 @@
-import { signal } from '@preact/signals';
+import { effect, signal } from '@preact/signals';
 import { del, get, set } from 'idb-keyval';
-import { emptyState, migrate, type AppState } from './schema';
+import { setUserExercises } from '../domain/exercises';
+import { emptyState, migrate, SCHEMA_VERSION, type AppState } from './schema';
 
 const KEY = 'adaptive-fit:state';
 const SNAPSHOT_KEY = 'adaptive-fit:snapshot';
@@ -10,9 +11,15 @@ export const loaded = signal(false);
 export const storageError = signal<string | null>(null);
 export const hasSnapshot = signal(false);
 
+// Mantém o catálogo de exercícios do domínio em sincronia com as máquinas cadastradas.
+effect(() => setUserExercises(app.value.customExercises));
+
 export async function loadState() {
   try {
-    app.value = migrate(await get(KEY));
+    const raw = await get(KEY);
+    app.value = migrate(raw);
+    // Grava já no formato novo para backups e próximas leituras.
+    if (raw != null && (raw as { schemaVersion?: number }).schemaVersion !== SCHEMA_VERSION) await set(KEY, app.value);
     hasSnapshot.value = (await get(SNAPSHOT_KEY)) != null;
   } catch (e) {
     storageError.value = `Não consegui ler os dados salvos: ${(e as Error).message}`;

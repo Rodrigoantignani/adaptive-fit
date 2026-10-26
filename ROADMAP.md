@@ -11,7 +11,12 @@ Do uso pessoal até produto. Cada fase só começa quando a anterior foi validad
 - [x] Gráficos de evolução e 1RM estimado
 - [x] Nota diária no Obsidian com um toque
 - [x] Backup/restauração e import do protótipo antigo
-- [ ] Editor de exercícios (criar/editar/ordenar e montar os próprios splits)
+- [x] Splits Full body / Superior / Inferior + rotina semanal
+- [x] Cadastro de máquinas com foto, edição e ocultação dos padrões
+- [x] Aquecimento corretivo para escoliose (lado encurtado)
+- [x] Assimetria → unilateral no plano, lado fraco primeiro, registro E/D
+- [ ] Identificar máquina pela foto (visão computacional) e sugerir nome/músculo
+- [ ] Gráfico de força por lado (E × D) nos unilaterais
 - [ ] Notificação de fim de descanso com o app em segundo plano
 - [ ] RIR/RPE por série para refinar a progressão
 - [ ] Deload automático (ex.: 3 sessões seguidas em "Recuperar" ou queda de 1RM)

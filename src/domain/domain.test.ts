@@ -4,13 +4,14 @@ import { parseNum } from '../lib/format';
 import { fromLegacy, mergeAssessments, migrate, parseBackup } from '../data/schema';
 import { analyzeAsymmetry } from './asymmetry';
 import { bodyDensity, computeBodyComp, siri } from './bodycomp';
-import { EXERCISES } from './exercises';
+import { activeLibrary, EXERCISES, newExercise } from './exercises';
 import { suggestSplit } from './history';
 import { buildDailyNote, obsidianNewUri } from './obsidian';
-import { buildPlan, estimateSeconds } from './planner';
+import { buildPlan, estimateSeconds, nextSide, setCount } from './planner';
 import { nextTarget } from './progression';
 import { assessReadiness } from './readiness';
-import type { CheckIn, Session } from './types';
+import { dayDefaults } from './routine';
+import type { CheckIn, PlannedExercise, Session, SetLog } from './types';
 
 const checkIn = (over: Partial<CheckIn> = {}): CheckIn => ({
   id: 'c1',
@@ -22,14 +23,16 @@ const checkIn = (over: Partial<CheckIn> = {}): CheckIn => ({
   timeAvailMin: 90,
   soreness: [],
   spineAlert: false,
-  split: 'upper_full',
+  split: 'upper',
   ...over,
 });
 
-const plan = (c: CheckIn, spineCare = false) => {
+const plan = (c: CheckIn, spineCare = false, extra: Partial<Parameters<typeof buildPlan>[0]> = {}) => {
   const readiness = assessReadiness(c, { spineCare });
-  return buildPlan({ checkIn: c, readiness, exercises: EXERCISES, historyFor: () => [], refLoads: {} });
+  return buildPlan({ checkIn: c, readiness, exercises: EXERCISES, historyFor: () => [], refLoads: {}, ...extra });
 };
+
+const FOREARM_GAP = { forearmR: 31, forearmL: 29, bicepsR: 38.5, bicepsL: 38.2 };
 
 describe('composição corporal', () => {
   it('JP3 masculino bate com a equação publicada', () => {
@@ -118,7 +121,7 @@ describe('dupla progressão', () => {
 
 describe('planejador', () => {
   it('coluna protegida troca agachamento e stiff por variações seguras', () => {
-    const p = plan(checkIn({ split: 'legs' }), true);
+    const p = plan(checkIn({ split: 'lower' }), true);
     const ids = p.items.map((i) => i.exerciseId);
     expect(ids).not.toContain('back_squat');
     expect(ids).not.toContain('romanian_deadlift');
@@ -150,12 +153,98 @@ describe('planejador', () => {
       expect(Math.abs(i - j)).toBe(1);
     });
   });
+
+  it('sem tempo, acessórios saem antes de a base perder séries', () => {
+    const p = plan(checkIn({ timeAvailMin: 45 }));
+    const base = p.items.filter((i) => EXERCISES.find((e) => e.id === i.exerciseId)!.priority === 1);
+    expect(base.length).toBeGreaterThan(0);
+    expect(base.every((i) => i.sets === 3)).toBe(true);
+    expect(p.dropped.some((d) => EXERCISES.find((e) => e.id === d.exerciseId)!.priority === 3)).toBe(true);
+  });
+
+  it('super-série cortada sai em par', () => {
+    for (const t of [30, 40, 45, 50, 55]) {
+      const p = plan(checkIn({ timeAvailMin: t }));
+      const ids = p.items.map((i) => i.exerciseId);
+      expect(ids.includes('scott_curl_machine')).toBe(ids.includes('french_press_machine'));
+    }
+  });
+
+  it('prioridade 1 vem antes de acessórios', () => {
+    const p = plan(checkIn({ split: 'full_body' }));
+    const prio = p.items.map((i) => EXERCISES.find((e) => e.id === i.exerciseId)!.priority);
+    expect([...prio].sort()).toEqual(prio);
+  });
+});
+
+describe('assimetria no plano', () => {
+  it('antebraço E 6,5% menor → unilateral com série extra no esquerdo', () => {
+    const p = plan(checkIn(), false, { perimeters: FOREARM_GAP });
+    const uni = p.items.find((i) => i.perSide && EXERCISES.find((e) => e.id === i.exerciseId)!.muscle === 'forearm');
+    expect(uni).toBeDefined();
+    expect(uni!.weakSide).toBe('L');
+    expect(uni!.extraSet).toBe(true);
+    expect(setCount(uni!)).toBe(uni!.sets * 2 + 1);
+    expect(p.rules.some((r) => r.id === 'asymmetry')).toBe(true);
+  });
+
+  it('dia de inferior não injeta antebraço', () => {
+    const p = plan(checkIn({ split: 'lower' }), false, { perimeters: FOREARM_GAP });
+    expect(p.items.some((i) => EXERCISES.find((e) => e.id === i.exerciseId)!.muscle === 'forearm')).toBe(false);
+  });
+
+  it('em dia só de máquinas usa a versão na polia', () => {
+    const p = plan(checkIn({ sleepHours: 5.5 }), false, { perimeters: FOREARM_GAP });
+    expect(p.items.map((i) => i.exerciseId)).toContain('cable_reverse_curl_uni');
+  });
+});
+
+describe('escoliose', () => {
+  it('lado esquerdo encurtado gera aquecimento e desconta o tempo', () => {
+    const p = plan(checkIn({ timeAvailMin: 45 }), true, { profile: { scoliosis: { shortSide: 'L' } } });
+    expect(p.corrective?.items.map((i) => i.id)).toContain('side_stretch');
+    expect(p.corrective?.items[0].title).toContain('esquerdo');
+    expect(estimateSeconds(p.items)).toBeLessThanOrEqual((45 - p.corrective!.minutes) * 60);
+    expect(p.estimatedMin).toBeLessThanOrEqual(45);
+  });
+
+  it('sem escoliose não há bloco corretivo', () => {
+    expect(plan(checkIn()).corrective).toBeNull();
+  });
+});
+
+describe('unilateral', () => {
+  const item: PlannedExercise = { exerciseId: 'x', sets: 2, restSec: 45, target: { load: 5, reps: 12, action: 'hold', reason: '' }, perSide: true, weakSide: 'L', extraSet: true };
+  const s = (...sides: ('L' | 'R')[]): SetLog[] => sides.map((side, i) => ({ load: 5, reps: 12, at: i, side }));
+
+  it('começa pelo fraco, alterna e deixa a extra para o fim', () => {
+    expect(nextSide([], item)).toBe('L');
+    expect(nextSide(s('L'), item)).toBe('R');
+    expect(nextSide(s('L', 'R'), item)).toBe('L');
+    expect(nextSide(s('L', 'R', 'L', 'R'), item)).toBe('L');
+  });
+});
+
+describe('rotina e biblioteca', () => {
+  it('segunda-feira com rotina de superior preenche o check-in', () => {
+    const d = dayDefaults('2026-10-26', { '1': { split: 'upper', timeAvailMin: 45, dayLoad: 'double' } }, undefined, [], ['full_body', 'upper', 'lower']);
+    expect(d).toMatchObject({ split: 'upper', timeAvailMin: 45, dayLoad: 'double', source: 'routine', restDay: false });
+  });
+
+  it('máquina nova entra, padrão oculto sai, edição sobrescreve', () => {
+    const mine = newExercise({ id: 'gt_hack', name: 'Hack articulado GT', muscle: 'quads', splits: ['lower'] });
+    const edited = { ...EXERCISES[0], name: 'Supino inclinado Hammer' };
+    const lib = activeLibrary([mine, edited], ['back_squat']);
+    expect(lib.find((e) => e.id === 'gt_hack')).toBeDefined();
+    expect(lib.find((e) => e.id === 'back_squat')).toBeUndefined();
+    expect(lib.find((e) => e.id === EXERCISES[0].id)?.name).toBe('Supino inclinado Hammer');
+  });
 });
 
 describe('histórico', () => {
   it('sugere o split nunca treinado', () => {
-    const s = { split: 'upper_full', date: '2026-10-25', startedAt: 1, endedAt: 2, entries: [] } as unknown as Session;
-    expect(suggestSplit([s], '2026-10-26', ['upper_full', 'pull']).split).toBe('pull');
+    const s = { split: 'upper', date: '2026-10-25', startedAt: 1, endedAt: 2, entries: [] } as unknown as Session;
+    expect(suggestSplit([s], '2026-10-26', ['upper', 'lower']).split).toBe('lower');
   });
 });
 
@@ -187,6 +276,16 @@ describe('dados', () => {
     expect(parseBackup('[{"date":"2026-01-01","weight":80}]').kind).toBe('legacy');
     expect(parseBackup(JSON.stringify(migrate(null))).kind).toBe('full');
     expect(() => migrate({ schemaVersion: 99 })).toThrow();
+  });
+
+  it('migra v1 → v2 convertendo os splits antigos', () => {
+    const v1 = { schemaVersion: 1, profile: null, settings: { obsidianVault: '', obsidianFolder: 'Treino', refLoads: { a: 1 } }, checkIns: [{ split: 'legs' }], sessions: [{ split: 'upper_full' }, { split: 'pull' }], assessments: [] };
+    const s = migrate(v1);
+    expect(s.schemaVersion).toBe(2);
+    expect(s.checkIns[0].split).toBe('lower');
+    expect(s.sessions.map((x) => x.split)).toEqual(['upper', 'upper']);
+    expect(s.settings).toMatchObject({ refLoads: { a: 1 }, hiddenExercises: [], week: {} });
+    expect(s.customExercises).toEqual([]);
   });
 
   it('merge não duplica datas', () => {

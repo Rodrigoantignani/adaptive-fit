@@ -1,10 +1,10 @@
 import { useState } from 'preact/hooks';
-import { saveProfile, saveSettings, setRefLoad } from '../data/actions';
+import { saveProfile, saveSettings, setWeekDay } from '../data/actions';
 import { emptyState, mergeAssessments, parseBackup } from '../data/schema';
 import { app, commit, hasSnapshot, mutate, restoreSnapshot, takeSnapshot } from '../data/store';
-import { EXERCISES } from '../domain/exercises';
+import { DAY_LOAD_LABEL, SPLIT_LABEL, SPLIT_ORDER, WEEKDAY_LABEL } from '../domain/labels';
 import { dataviewSnippet } from '../domain/obsidian';
-import type { Profile, Sex } from '../domain/types';
+import type { DayLoad, Profile, Sex, Side, WeekDay } from '../domain/types';
 import { localISODate } from '../lib/date';
 import { copyText, downloadText } from '../lib/device';
 import { Card, Choice, Notice, NumField, Toggle } from '../ui/kit';
@@ -45,6 +45,23 @@ export function ProfileForm() {
         checked={f.spineCare}
         onChange={(v) => set('spineCare', v)}
       />
+      <Toggle
+        label="Escoliose"
+        hint="Adiciona um aquecimento corretivo de ~5 min a todo treino."
+        checked={!!f.scoliosis}
+        onChange={(v) => set('scoliosis', v ? { shortSide: f.scoliosis?.shortSide ?? 'L' } : null)}
+      />
+      {f.scoliosis && (
+        <Choice<Side>
+          label="Lado do tronco encurtado"
+          value={f.scoliosis.shortSide}
+          onChange={(v) => set('scoliosis', { shortSide: v })}
+          options={[
+            { value: 'L', label: 'Esquerdo' },
+            { value: 'R', label: 'Direito' },
+          ]}
+        />
+      )}
       <button
         class="btn"
         disabled={!f.birthDate}
@@ -56,6 +73,63 @@ export function ProfileForm() {
         Salvar perfil
       </button>
       {ok && <p class="flash">Perfil salvo</p>}
+    </Card>
+  );
+}
+
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/** Rotina semanal: preenche o check-in de cada dia (split, tempo e demanda). */
+function WeekCard() {
+  const week = app.value.settings.week;
+  const update = (dow: number, patch: Partial<WeekDay>) => {
+    const cur = week[dow] ?? { split: 'full_body', timeAvailMin: 60, dayLoad: 'light' };
+    setWeekDay(dow, { ...cur, ...patch });
+  };
+  return (
+    <Card title="Rotina semanal">
+      <p class="muted small">O check-in de cada dia já vem com o treino, o tempo e a demanda daqui. Dá para mudar na hora.</p>
+      <div class="week">
+        {WEEK_ORDER.map((dow) => {
+          const d = week[dow];
+          return (
+            <div key={dow} class="week-row">
+              <strong>{WEEKDAY_LABEL[dow].slice(0, 3)}</strong>
+              <select
+                aria-label={`Treino de ${WEEKDAY_LABEL[dow]}`}
+                value={d?.split ?? ''}
+                onChange={(e) => {
+                  const v = e.currentTarget.value;
+                  if (!v) setWeekDay(dow, null);
+                  else update(dow, { split: v as WeekDay['split'] });
+                }}
+              >
+                <option value="">Livre</option>
+                <option value="rest">Descanso</option>
+                {SPLIT_ORDER.map((s) => (
+                  <option key={s} value={s}>
+                    {SPLIT_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+              {d && d.split !== 'rest' ? (
+                <>
+                  <NumField label="" suffix="min" value={d.timeAvailMin} onChange={(v) => update(dow, { timeAvailMin: v ?? 0 })} />
+                  <select aria-label={`Demanda de ${WEEKDAY_LABEL[dow]}`} value={d.dayLoad} onChange={(e) => update(dow, { dayLoad: e.currentTarget.value as DayLoad })}>
+                    {(Object.keys(DAY_LOAD_LABEL) as DayLoad[]).map((k) => (
+                      <option key={k} value={k}>
+                        {DAY_LOAD_LABEL[k].label}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <span class="muted small span-2">{d ? 'Recuperação' : 'Sem padrão'}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </Card>
   );
 }
@@ -113,14 +187,7 @@ export function Settings() {
         </details>
       </Card>
 
-      <Card title="Cargas de referência">
-        <p class="muted small">Ponto de partida de cada exercício. Depois do primeiro treino, a progressão usa o seu histórico.</p>
-        <div class="grid-2">
-          {EXERCISES.map((ex) => (
-            <NumField key={ex.id} label={ex.name} suffix={ex.loadUnit} value={settings.refLoads[ex.id]} onChange={(v) => setRefLoad(ex.id, v)} />
-          ))}
-        </div>
-      </Card>
+      <WeekCard />
 
       <Card title="Seus dados">
         <Notice tone="info">

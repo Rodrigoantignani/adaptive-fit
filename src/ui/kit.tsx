@@ -111,14 +111,33 @@ export function Choice<T extends string>({
   );
 }
 
-export function Chips<T extends string>({ label, options, values, onChange }: { label: string; options: { value: T; label: string }[]; values: T[]; onChange: (v: T[]) => void }) {
+export function Chips<T extends string>({
+  label,
+  options,
+  values,
+  onChange,
+  accent,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  values: T[];
+  onChange: (v: T[]) => void;
+  /** Laranja (seleção) em vez de vermelho (alerta). */
+  accent?: boolean;
+}) {
   const toggle = (v: T) => onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v]);
   return (
     <div class="field">
       <span>{label}</span>
       <div class="chips">
         {options.map((o) => (
-          <button key={o.value} type="button" aria-pressed={values.includes(o.value)} class={`chip ${values.includes(o.value) ? 'on' : ''}`} onClick={() => toggle(o.value)}>
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={values.includes(o.value)}
+            class={`chip ${accent ? 'accent' : ''} ${values.includes(o.value) ? 'on' : ''}`}
+            onClick={() => toggle(o.value)}
+          >
             {o.label}
           </button>
         ))}

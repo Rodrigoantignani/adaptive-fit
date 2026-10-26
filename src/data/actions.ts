@@ -1,7 +1,30 @@
 import { uid } from '../lib/id';
-import type { BodyAssessment, CheckIn, Plan, Profile, Readiness, SetLog } from '../domain/types';
+import type { BodyAssessment, CheckIn, Exercise, Plan, Profile, Readiness, SetLog, WeekDay } from '../domain/types';
 import type { Settings } from './schema';
 import { mutate } from './store';
+
+/** Cria ou atualiza; editar um padrão salva uma cópia com o mesmo id. */
+export const saveExercise = (ex: Exercise) =>
+  mutate((s) => ({ ...s, customExercises: [...s.customExercises.filter((e) => e.id !== ex.id), ex] }));
+
+/** Apaga a máquina criada ou desfaz a edição de um exercício padrão. */
+export const removeCustomExercise = (id: string) =>
+  mutate((s) => ({ ...s, customExercises: s.customExercises.filter((e) => e.id !== id) }));
+
+export const setExerciseHidden = (id: string, hidden: boolean) =>
+  mutate((s) => {
+    const rest = s.settings.hiddenExercises.filter((x) => x !== id);
+    return { ...s, settings: { ...s.settings, hiddenExercises: hidden ? [...rest, id] : rest } };
+  });
+
+export function setWeekDay(dow: number, day: WeekDay | null) {
+  mutate((s) => {
+    const week = { ...s.settings.week };
+    if (day) week[dow] = day;
+    else delete week[dow];
+    return { ...s, settings: { ...s.settings, week } };
+  });
+}
 
 export const saveProfile = (profile: Profile) => mutate((s) => ({ ...s, profile }));
 
@@ -34,6 +57,7 @@ export function startSession(checkIn: CheckIn, readiness: Readiness, plan: Plan)
         readinessScore: readiness.score,
         tier: readiness.tier,
         plan: plan.items,
+        corrective: plan.corrective,
         rules: plan.rules,
         entries: plan.items.map((i) => ({ exerciseId: i.exerciseId, sets: [] })),
         startedAt: Date.now(),

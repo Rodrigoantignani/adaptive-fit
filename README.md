@@ -12,8 +12,12 @@ PWA instalável, funciona offline e guarda **todos os dados no próprio aparelho
 |---|---|
 | **Prontidão 0–100** | Sono (horas + qualidade), energia, demanda física do dia e dores viram uma nota com três modos: *Progredir*, *Manter* ou *Recuperar*. |
 | **Regras de segurança** | Sono curto ou turno duplo → só máquinas e volume reduzido. Coluna sensível ou dor lombar → nada de carga axial. Core dolorido → sem exercícios de alta estabilização. |
+| **Full body / Superior / Inferior** | Rotina semanal define o treino, o tempo e a demanda de cada dia; o check-in já nasce preenchido. |
 | **Substituição automática** | Exercício bloqueado é trocado por um do mesmo músculo que seja seguro (agachamento → afundo búlgaro, stiff → cadeira flexora, barra fixa → puxada). |
-| **Encaixe no tempo** | Se não cabe, monta super-séries de antagonistas, corta séries dos exercícios de menor prioridade e, por último, exercícios inteiros. |
+| **Encaixe no tempo** | Se não cabe, monta super-séries de antagonistas, depois corta acessórios (super-série sai em par) e só então reduz a base. |
+| **Escoliose** | Informando o lado encurtado, todo plano ganha um aquecimento corretivo de ~5 min (alongamento lateral, respiração dirigida, bird dog, prancha lateral). |
+| **Assimetrias** | A última avaliação vira treino: diferença ≥ 5% entre lados coloca um unilateral no plano, começando pelo lado fraco e com série extra nele. Registro por lado (E/D). |
+| **Máquinas da sua academia** | Cadastre máquinas novas com foto (comprimida no aparelho), dias, prioridade, unilateral, carga inicial e ajuste da máquina. Edite ou oculte as padrão. |
 | **Dupla progressão** | Bateu o topo da faixa em todas as séries → sobe carga. Duas sessões abaixo da faixa → desce um degrau. Em modo recuperação, nunca sobe. |
 | **Registro de treino** | Séries com stepper (+/−), timer de descanso automático baseado em timestamp (não atrasa com a tela bloqueada), vibração + bipe e tela sempre acesa. |
 | **Antropometria** | Jackson & Pollock 3 ou 7 dobras (por sexo) + Siri, massa magra, perímetros e alerta de assimetria bilateral com recomendação. |

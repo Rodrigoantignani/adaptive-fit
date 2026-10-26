@@ -1084,7 +1084,7 @@ details[open] > summary {
   right: 0;
   z-index: 100;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   height: calc(var(--nav-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: rgba(22, 25, 30, 0.96);
@@ -1117,6 +1117,256 @@ details[open] > summary {
 
 .nav-item.active .nav-icon {
   filter: none;
+}
+
+/* ---------- v0.4: máquinas, unilateral, corretivo, rotina ---------- */
+.chip.accent.on {
+  border-color: var(--primary);
+  background: var(--primary-dim);
+  color: var(--primary);
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.thumb.lg {
+  width: 52px;
+  height: 52px;
+}
+
+.thumb.placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+
+.logger-head {
+  align-items: center;
+}
+
+.tag.warn {
+  color: var(--primary);
+  background: var(--primary-dim);
+}
+
+.set-pill i {
+  font-style: normal;
+  color: var(--primary);
+  margin-right: 3px;
+}
+
+.side-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.side-toggle button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.side-toggle button.on {
+  border-color: var(--primary);
+  background: var(--primary-dim);
+  color: var(--primary);
+}
+
+.side-toggle small {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.corrective {
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.corrective-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.corrective-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.86rem;
+}
+
+.corrective-list input {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  accent-color: var(--success);
+  flex-shrink: 0;
+}
+
+.corrective-list .dose {
+  color: var(--info);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.corrective-list p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+.corrective-list li.done {
+  opacity: 0.5;
+}
+
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.search {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 1rem;
+}
+
+.machine-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.machine {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.machine .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.machine small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.machine .badge {
+  font-style: normal;
+}
+
+.back {
+  align-self: flex-start;
+  font-size: 0.9rem;
+}
+
+.photo-field {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.photo-field img,
+.photo-empty {
+  width: 96px;
+  height: 96px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.photo-empty {
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.photo-actions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.field select,
+.week-row select {
+  appearance: none;
+}
+
+.week {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.week-row {
+  display: grid;
+  grid-template-columns: 40px 1.2fr 0.9fr 1fr;
+  gap: 6px;
+  align-items: center;
+}
+
+.week-row > strong {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.week-row select {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.week-row .field > span:empty {
+  display: none;
+}
+
+.week-row .field input {
+  padding: 10px 36px 10px 8px;
+  font-size: 0.9rem;
+}
+
+.span-2 {
+  grid-column: span 2;
 }
 
 @media (max-width: 360px) {

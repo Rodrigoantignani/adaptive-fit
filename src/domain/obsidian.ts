@@ -58,6 +58,12 @@ export function buildDailyNote({ date, checkIn, readiness, session, assessment }
     body.push('');
   }
 
+  if (session?.corrective) {
+    body.push(`## ${session.corrective.title}`);
+    for (const c of session.corrective.items) body.push(`- [ ] **${c.title}** (${c.dose})`);
+    body.push('');
+  }
+
   if (session) {
     const t = sessionTotals(session);
     fm.push(['session_sets', t.sets], ['session_volume_kg', t.volume], ['session_minutes', t.minutes]);
@@ -65,7 +71,7 @@ export function buildDailyNote({ date, checkIn, readiness, session, assessment }
     for (const entry of session.entries) {
       if (!entry.sets.length) continue;
       const ex = exerciseById(entry.exerciseId);
-      const sets = entry.sets.map((s) => `${fmtNum(s.load)}×${s.reps}`).join(' · ');
+      const sets = entry.sets.map((s) => `${s.side ? (s.side === 'L' ? 'E ' : 'D ') : ''}${fmtNum(s.load)}×${s.reps}`).join(' · ');
       const vol = Math.round(entry.sets.reduce((a, s) => a + setVolume(s, ex), 0));
       body.push(`| ${ex?.name ?? entry.exerciseId} | ${sets} ${ex?.loadUnit ?? 'kg'} | ${fmtNum(vol)} kg | ${fmtNum(round(bestE1rm(entry.sets)))} |`);
     }
