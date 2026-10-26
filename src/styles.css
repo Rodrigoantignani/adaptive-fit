@@ -1369,6 +1369,241 @@ details[open] > summary {
   grid-column: span 2;
 }
 
+/* ---------- v0.5: cronômetro, técnicas, dor, guia ---------- */
+.timer-fab {
+  position: fixed;
+  right: max(16px, calc(50% - 270px));
+  bottom: calc(var(--nav-h) + 14px + env(safe-area-inset-bottom));
+  z-index: 105;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid var(--primary);
+  background: var(--surface-2);
+  font-size: 1.4rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.timer-sheet {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--nav-h) + 10px + env(safe-area-inset-bottom));
+  max-width: 536px;
+  margin: 0 auto;
+  z-index: 110;
+  background: var(--surface-2);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.timer-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.timer-sheet-head strong {
+  margin-right: auto;
+}
+
+.timer-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.timer-presets button,
+.timer-custom > button:not(.btn) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 0;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.timer-custom {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px 1.4fr;
+  gap: 8px;
+  align-items: center;
+  text-align: center;
+}
+
+.timer-custom strong {
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-custom .btn {
+  padding: 12px 0;
+}
+
+.rest-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.rest-meta .learn {
+  color: var(--info);
+}
+
+.rest-timer.final .rest-clock {
+  color: var(--danger);
+  animation: pulse 0.5s ease-in-out infinite alternate;
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.presets button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 0;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.presets button.on {
+  border-color: var(--primary);
+  background: var(--primary-dim);
+  color: var(--primary);
+}
+
+.rating.pain {
+  grid-template-columns: repeat(11, 1fr);
+  gap: 3px;
+}
+
+.rating.pain button {
+  padding: 9px 0;
+  font-size: 0.8rem;
+}
+
+.rating.pain button.mid.on {
+  background: var(--primary);
+}
+
+.rating.pain button.hi.on {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+button.tag {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.tag.technique {
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.15);
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 85dvh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.9rem;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.sheet h2 {
+  font-size: 1.2rem;
+}
+
+.sheet ol {
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warn-text b {
+  color: var(--primary);
+}
+
+.glossary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide dl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.guide dt {
+  font-weight: 700;
+}
+
+.guide dd {
+  color: var(--muted);
+}
+
+.rules-list {
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.learned {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--info-dim);
+}
+
 @media (max-width: 360px) {
   .grid-3 {
     grid-template-columns: 1fr 1fr;

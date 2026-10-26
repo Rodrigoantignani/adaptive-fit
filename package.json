@@ -1,7 +1,7 @@
 {
   "name": "adaptive-fit",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Treino autorregulado, antropometria e integração com Obsidian. Local-first, PWA.",
   "type": "module",
   "engines": {

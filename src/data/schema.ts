@@ -13,6 +13,10 @@ export interface Settings {
   hiddenExercises: string[];
   /** Rotina por dia da semana ("0" = domingo). */
   week: Record<string, WeekDay>;
+  /** Ordem de alternância dos treinos. */
+  rotation: SplitId[];
+  /** Descanso entre séries que o usuário ajustou no cronômetro, por exercício. */
+  learnedRest: Record<string, number>;
 }
 
 export interface AppState {
@@ -29,7 +33,16 @@ export interface AppState {
 export const emptyState = (): AppState => ({
   schemaVersion: SCHEMA_VERSION,
   profile: null,
-  settings: { obsidianVault: '', obsidianFolder: 'Treino', gymName: '', refLoads: {}, hiddenExercises: [], week: {} },
+  settings: {
+    obsidianVault: '',
+    obsidianFolder: 'Treino',
+    gymName: '',
+    refLoads: {},
+    hiddenExercises: [],
+    week: {},
+    rotation: ['upper', 'lower'],
+    learnedRest: {},
+  },
   customExercises: [],
   checkIns: [],
   sessions: [],

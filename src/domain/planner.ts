@@ -1,8 +1,10 @@
 import { fmtNum } from '../lib/format';
 import { analyzeAsymmetry } from './asymmetry';
 import { correctiveBlock } from './correctives';
+import { exerciseById } from './exercises';
 import { SIDE_LABEL } from './labels';
 import { nextTarget, type Performance } from './progression';
+import { suggestTechniques } from './techniques';
 import type {
   CheckIn,
   Exercise,
@@ -16,6 +18,7 @@ import type {
   Rule,
   SetLog,
   Side,
+  SorenessArea,
   SplitId,
 } from './types';
 
@@ -32,12 +35,40 @@ const PAIR_MUSCLE: Record<string, Muscle> = { biceps: 'biceps', forearm: 'forear
 
 const splitTrains = (split: SplitId, m: Muscle) => SPLIT_MUSCLES[split] === 'all' || (SPLIT_MUSCLES[split] as Muscle[]).includes(m);
 
+const SORE_MUSCLES: Partial<Record<SorenessArea, Muscle[]>> = {
+  chest: ['chest'],
+  back: ['back', 'rear_delt'],
+  shoulders: ['front_delt', 'side_delt', 'rear_delt'],
+  arms: ['biceps', 'triceps', 'forearm'],
+  legs: ['quads', 'hamstrings', 'calves'],
+};
+
 export function exclusionReason(e: Exercise, flags: ReadinessFlags): string | null {
+  if (flags.ankleLevel >= 1 && e.ankleLoad === 'high') return 'carga alta no tendão de Aquiles';
+  if (flags.ankleLevel === 2 && e.ankleLoad === 'moderate') return 'dorsiflexão com carga (tendão dolorido)';
   if (flags.noAxial && e.axialLoad) return 'carga axial na coluna';
   if (flags.noHighCore && e.coreDemand === 'high') return 'exige muito do core';
   if (flags.machinesOnly && (e.equipment === 'free' || e.equipment === 'bodyweight')) return 'dia de máquinas guiadas';
   return null;
 }
+
+const addNote = (it: PlannedExercise, note: string) => {
+  it.notes = [...(it.notes ?? []), note];
+};
+
+/** Segura a progressão: nada de subir carga hoje (volta ao degrau anterior). */
+const holdLoad = (it: PlannedExercise, reason: string) => {
+  if (it.target.action !== 'increase') return;
+  const ex = exerciseById(it.exerciseId);
+  const step = (ex?.increment ?? 0) * (ex?.loadMode === 'assisted' ? -1 : 1);
+  it.target = {
+    ...it.target,
+    load: it.target.load === null ? null : Math.max(0, it.target.load - step),
+    reps: ex?.repMax ?? it.target.reps,
+    action: 'hold',
+    reason,
+  };
+};
 
 /** Total de séries executadas (unilateral conta os dois lados + a extra). */
 export const setCount = (it: PlannedExercise) => (it.perSide ? it.sets * 2 : it.sets) + (it.extraSet ? 1 : 0);
@@ -76,12 +107,16 @@ export interface PlanInput {
   exercises: Exercise[];
   historyFor: (exerciseId: string) => Performance[];
   refLoads: Record<string, number>;
-  profile?: Pick<Profile, 'scoliosis'> | null;
+  profile?: Pick<Profile, 'scoliosis' | 'achilles'> | null;
   /** Perímetros da avaliação mais recente com medidas bilaterais. */
   perimeters?: Partial<Record<PerimeterSite, number>>;
+  /** Melhor 1RM estimado de cada lado na última sessão unilateral. */
+  sideStrength?: (exerciseId: string) => { L: number; R: number } | null;
+  /** Descanso que o usuário ajustou no cronômetro e o app aprendeu. */
+  learnedRest?: Record<string, number>;
 }
 
-export function buildPlan({ checkIn, readiness, exercises, historyFor, refLoads, profile, perimeters }: PlanInput): Plan {
+export function buildPlan({ checkIn, readiness, exercises, historyFor, refLoads, profile, perimeters, sideStrength, learnedRest }: PlanInput): Plan {
   const byId = new Map(exercises.map((e) => [e.id, e]));
   const { flags, tier } = readiness;
   const rules: Rule[] = [...readiness.rules];
@@ -92,7 +127,7 @@ export function buildPlan({ checkIn, readiness, exercises, historyFor, refLoads,
   const toItem = (ex: Exercise): PlannedExercise => ({
     exerciseId: ex.id,
     sets: lighter ? Math.max(2, ex.sets - 1) : ex.sets,
-    restSec: ex.restSec + (tier === 'recover' ? 30 : 0),
+    restSec: (learnedRest?.[ex.id] ?? ex.restSec) + (tier === 'recover' ? 30 : 0),
     target: nextTarget(ex, historyFor(ex.id), tier, refLoads[ex.id]),
     ...(ex.unilateral ? { perSide: true } : {}),
   });
@@ -140,8 +175,47 @@ export function buildPlan({ checkIn, readiness, exercises, historyFor, refLoads,
     const side = SIDE_LABEL[a.smaller];
     target.weakSide = a.smaller;
     target.extraSet = a.level === 'act';
-    target.note = `${a.label}: Δ ${fmtNum(a.diffCm)} cm (${fmtNum(a.diffPct)}%). Comece pelo lado ${side}${target.extraSet ? ' e faça 1 série extra só nele' : ''}.`;
+    addNote(target, `${a.label}: Δ ${fmtNum(a.diffCm)} cm (${fmtNum(a.diffPct)}%). Comece pelo lado ${side}${target.extraSet ? ' e faça 1 série extra só nele' : ''}.`);
     notes.push(`${a.label.toLowerCase()} ${side} ${fmtNum(a.diffPct)}% menor`);
+  }
+
+  // 2b. Força por lado nos unilaterais (quando a medida não definiu o lado)
+  for (const it of items) {
+    if (!it.perSide || it.weakSide) continue;
+    const s = sideStrength?.(it.exerciseId);
+    if (!s || !s.L || !s.R) continue;
+    const pct = (Math.abs(s.L - s.R) / Math.max(s.L, s.R)) * 100;
+    if (pct < 3) continue;
+    it.weakSide = s.L < s.R ? 'L' : 'R';
+    it.extraSet = pct >= 5;
+    addNote(it, `Força: E ${fmtNum(Math.round(s.L))} × D ${fmtNum(Math.round(s.R))} (${fmtNum(Math.round(pct))}%). Comece pelo ${SIDE_LABEL[it.weakSide]}${it.extraSet ? ' com 1 série extra' : ''}.`);
+    notes.push(`força ${SIDE_LABEL[it.weakSide]} ${fmtNum(Math.round(pct))}% menor em ${byId.get(it.exerciseId)?.name.toLowerCase()}`);
+  }
+
+  // 2c. Músculos doloridos e tendão
+  const sore = new Set(checkIn.soreness.flatMap((a) => SORE_MUSCLES[a] ?? []));
+  const tendon = profile?.achilles ? (checkIn.tendonPain ?? 0) : 0;
+  const maintenance: string[] = [];
+  for (const it of items) {
+    const ex = byId.get(it.exerciseId)!;
+    if (sore.has(ex.muscle)) {
+      if (!lighter) it.sets = Math.max(2, it.sets - 1);
+      holdLoad(it, 'Músculo dolorido hoje: manutenção, sem subir carga.');
+      addNote(it, 'Dolorido hoje: uma série a menos e carga mantida.');
+      maintenance.push(ex.name);
+    }
+    if (flags.ankleLevel >= 1 && ex.ankleLoad === 'moderate') {
+      addNote(it, 'Tendão: calcanhar nunca abaixo do neutro; no leg press, pés mais altos na plataforma.');
+      if (tendon >= 3) holdLoad(it, `Tendão ${tendon}/10: carga mantida até a dor baixar.`);
+    }
+  }
+  if (maintenance.length) {
+    rules.push({
+      id: 'recovery',
+      tone: 'info',
+      title: 'Músculos doloridos',
+      detail: `Em manutenção hoje: ${maintenance.join(', ')}. Treinar dolorido no limite só acumula fadiga.`,
+    });
   }
   if (notes.length) {
     rules.push({
@@ -159,8 +233,9 @@ export function buildPlan({ checkIn, readiness, exercises, historyFor, refLoads,
     .map(({ it }) => it);
 
   // 3. Encaixe no tempo disponível (descontando o aquecimento corretivo)
-  const corrective = correctiveBlock(profile);
+  const corrective = correctiveBlock(profile, tendon);
   const budget = (checkIn.timeAvailMin - (corrective?.minutes ?? 0)) * 60;
+  let timeTight = false;
   if (estimateSeconds(items) > budget) {
     let pairs = 0;
     for (const it of items) {
@@ -212,6 +287,7 @@ export function buildPlan({ checkIn, readiness, exercises, historyFor, refLoads,
     trimSets(() => true);
     dropWhere(() => true);
 
+    timeTight = setsCut > 0 || exCut > 0;
     const parts = [
       pairs ? `${pairs} super-série(s) de antagonistas` : '',
       setsCut ? `${setsCut} série(s) a menos` : '',
@@ -224,6 +300,8 @@ export function buildPlan({ checkIn, readiness, exercises, historyFor, refLoads,
       detail: `Para caber em ${checkIn.timeAvailMin} min: ${parts.join(', ') || 'ritmo acelerado'}. Em super-série, descanse só depois do segundo exercício.`,
     });
   }
+
+  suggestTechniques(items, byId, readiness, timeTight);
 
   return {
     items,

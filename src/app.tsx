@@ -6,6 +6,7 @@ import { Machines } from './screens/Machines';
 import { Progress } from './screens/Progress';
 import { Settings } from './screens/Settings';
 import { Today } from './screens/Today';
+import { TechniqueSheet } from './ui/TechniqueSheet';
 import { RestTimer } from './ui/timer';
 
 type Tab = 'today' | 'body' | 'progress' | 'machines' | 'settings';
@@ -44,6 +45,7 @@ export function App() {
         {tab === 'settings' && <Settings />}
       </main>
       <RestTimer />
+      <TechniqueSheet />
       <nav class="bottom-nav">
         {TABS.map((t) => (
           <button

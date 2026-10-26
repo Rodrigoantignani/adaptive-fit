@@ -5,7 +5,7 @@ import { fromLegacy, mergeAssessments, migrate, parseBackup } from '../data/sche
 import { analyzeAsymmetry } from './asymmetry';
 import { bodyDensity, computeBodyComp, siri } from './bodycomp';
 import { activeLibrary, EXERCISES, newExercise } from './exercises';
-import { suggestSplit } from './history';
+import { nextInRotation, suggestSplit } from './history';
 import { buildDailyNote, obsidianNewUri } from './obsidian';
 import { buildPlan, estimateSeconds, nextSide, setCount } from './planner';
 import { nextTarget } from './progression';
@@ -129,11 +129,12 @@ describe('planejador', () => {
     expect(p.items.find((i) => i.exerciseId === 'seated_leg_curl')?.substitutedFor).toBe('romanian_deadlift');
   });
 
-  it('dia de máquinas troca barra fixa por puxada e tira a roda abdominal', () => {
+  it('dia de máquinas mantém a barra assistida, troca halteres por máquina e tira a roda abdominal', () => {
     const p = plan(checkIn({ sleepHours: 5.5 }));
     const ids = p.items.map((i) => i.exerciseId);
-    expect(ids).toContain('lat_pulldown');
-    expect(ids).not.toContain('pullup');
+    expect(ids[0]).toBe('pullup_assisted');
+    expect(ids).toContain('reverse_pec_deck');
+    expect(ids).not.toContain('rear_delt_incline');
     expect(p.dropped.map((d) => d.exerciseId)).toContain('ab_wheel');
     expect(p.items.every((i) => i.sets <= 2)).toBe(true);
   });
@@ -238,6 +239,113 @@ describe('rotina e biblioteca', () => {
     expect(lib.find((e) => e.id === 'gt_hack')).toBeDefined();
     expect(lib.find((e) => e.id === 'back_squat')).toBeUndefined();
     expect(lib.find((e) => e.id === EXERCISES[0].id)?.name).toBe('Supino inclinado Hammer');
+  });
+});
+
+describe('barra assistida (contrapeso)', () => {
+  const ex = { repMin: 6, repMax: 10, increment: 5, loadMode: 'assisted' as const };
+  const sets = (help: number, ...reps: number[]) => reps.map((r) => ({ load: help, reps: r, at: 0 }));
+
+  it('topo das reps → tira ajuda', () => {
+    expect(nextTarget(ex, [{ date: 'd', sets: sets(30, 10, 10, 10) }], 'push')).toMatchObject({ load: 25, action: 'increase' });
+  });
+
+  it('a melhor série é a de menor ajuda', () => {
+    const t = nextTarget(ex, [{ date: 'd', sets: [...sets(30, 10), ...sets(25, 8, 7)] }], 'push');
+    expect(t).toMatchObject({ load: 25, action: 'hold' });
+    expect(t.reason).toContain('ajuda');
+  });
+
+  it('duas sessões abaixo → coloca mais ajuda', () => {
+    const h = [{ date: 'd2', sets: sets(20, 5, 4) }, { date: 'd1', sets: sets(20, 5, 5) }];
+    expect(nextTarget(ex, h, 'maintain')).toMatchObject({ load: 25, action: 'decrease' });
+  });
+
+  it('ajuda zerada sugere a barra livre', () => {
+    const t = nextTarget(ex, [{ date: 'd', sets: sets(5, 10, 10, 10) }], 'push');
+    expect(t.load).toBe(0);
+    expect(t.reason).toContain('barra fixa livre');
+  });
+});
+
+describe('tendão de Aquiles (Haglund)', () => {
+  const lower = (pain: number) => {
+    const c = checkIn({ split: 'lower', tendonPain: pain });
+    const profile = { spineCare: true, achilles: { side: 'L' as const } };
+    const readiness = assessReadiness(c, profile);
+    return buildPlan({ checkIn: c, readiness, exercises: EXERCISES, historyFor: () => [], refLoads: {}, profile });
+  };
+
+  it('sem dor: tira só o que é carga alta e avisa nos moderados', () => {
+    const p = lower(0);
+    expect(p.items.map((i) => i.exerciseId)).toContain('leg_press_45');
+    expect(p.items.find((i) => i.exerciseId === 'leg_press_45')?.notes?.join(' ')).toContain('Tendão');
+    expect(p.corrective?.items.map((i) => i.id)).toContain('calf_iso_flat');
+  });
+
+  it('dor ≥ 5: sai dorsiflexão com carga, panturrilha vira amplitude curta', () => {
+    const p = lower(6);
+    const ids = p.items.map((i) => i.exerciseId);
+    expect(ids).not.toContain('leg_press_45');
+    expect(ids).not.toContain('seated_calf');
+    expect(ids).toContain('calf_press_flat');
+    expect(p.rules.find((r) => r.id === 'achilles')?.tone).toBe('warn');
+    expect(p.corrective?.items.map((i) => i.id)).toContain('calf_iso_seated');
+  });
+});
+
+describe('ajustes do dia', () => {
+  it('músculo dolorido entra em manutenção sem subir carga', () => {
+    const c = checkIn({ soreness: ['arms'] });
+    const readiness = assessReadiness(c, null);
+    const history = () => [{ date: 'd', sets: [10, 10, 10].map((r) => ({ load: 30, reps: r, at: 0 })) }];
+    const p = buildPlan({ checkIn: c, readiness, exercises: EXERCISES, historyFor: history, refLoads: {} });
+    const scott = p.items.find((i) => i.exerciseId === 'scott_curl_machine');
+    if (scott) {
+      expect(scott.target.action).not.toBe('increase');
+      expect(scott.sets).toBe(2);
+    }
+    expect(p.rules.some((r) => r.id === 'recovery')).toBe(true);
+  });
+
+  it('força desigual nos unilaterais define o lado fraco', () => {
+    const c = checkIn({ split: 'lower' });
+    const readiness = assessReadiness(c, null);
+    const lib = EXERCISES.map((e) => (e.id === 'leg_extension' ? { ...e, unilateral: true } : e));
+    const p = buildPlan({ checkIn: c, readiness, exercises: lib, historyFor: () => [], refLoads: {}, sideStrength: (id) => (id === 'leg_extension' ? { L: 40, R: 46 } : null) });
+    const it = p.items.find((i) => i.exerciseId === 'leg_extension')!;
+    expect(it.weakSide).toBe('L');
+    expect(it.extraSet).toBe(true);
+  });
+
+  it('descanso aprendido substitui o padrão', () => {
+    const p = plan(checkIn(), false, { learnedRest: { pullup_assisted: 105 } });
+    expect(p.items.find((i) => i.exerciseId === 'pullup_assisted')?.restSec).toBe(105);
+  });
+
+  it('técnicas: progredir sugere drop-set em máquina; recuperar sugere superlento; nunca em peso livre', () => {
+    const push = plan(checkIn());
+    const techs = push.items.filter((i) => i.technique);
+    expect(techs.length).toBeGreaterThan(0);
+    expect(techs.length).toBeLessThanOrEqual(2);
+    for (const t of techs) expect(['machine', 'cable']).toContain(EXERCISES.find((e) => e.id === t.exerciseId)!.equipment);
+    const rec = plan(checkIn({ sleepHours: 4, energy: 1, sleepQuality: 1 }));
+    expect(rec.items.filter((i) => i.technique).map((i) => i.technique)).toEqual(['super_slow']);
+  });
+});
+
+describe('alternância', () => {
+  const sess = (split: string, t: number) => ({ split, date: '2026-10-25', startedAt: t, endedAt: t + 1, entries: [] }) as unknown as Session;
+
+  it('Superior ↔ Inferior a partir do último treino', () => {
+    expect(nextInRotation([], ['upper', 'lower'])).toBe('upper');
+    expect(nextInRotation([sess('upper', 1)], ['upper', 'lower'])).toBe('lower');
+    expect(nextInRotation([sess('upper', 1), sess('lower', 2)], ['upper', 'lower'])).toBe('upper');
+  });
+
+  it('dia "Livre (alterna)" usa a rotação com o tempo do dia', () => {
+    const d = dayDefaults('2026-10-26', { '1': { split: 'auto', timeAvailMin: 90, dayLoad: 'light' } }, undefined, [sess('upper', 1)], ['upper', 'lower']);
+    expect(d).toMatchObject({ split: 'lower', timeAvailMin: 90, source: 'rotation' });
   });
 });
 

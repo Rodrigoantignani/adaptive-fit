@@ -4,6 +4,7 @@ import { app } from '../data/store';
 import { analyzeAsymmetry, asymmetryAdvice } from '../domain/asymmetry';
 import { computeBodyComp, JP3_SITES, JP7_SITES, pickProtocol } from '../domain/bodycomp';
 import { CONDITION_LABEL, PERIMETER_LABEL, SKINFOLD_LABEL } from '../domain/labels';
+import { MEASURE_RULES, PERIMETER_GUIDE, SKINFOLD_GUIDE } from '../domain/measureGuide';
 import type { BodyAssessment, MeasureCondition, PerimeterSite, SkinfoldSite } from '../domain/types';
 import { ageOn, formatBR, localISODate } from '../lib/date';
 import { fmtNum } from '../lib/format';
@@ -106,6 +107,17 @@ export function Body() {
             <NumField key={k} label={SKINFOLD_LABEL[k]} value={d.skinfolds[k]} placeholder={hint(last?.skinfolds[k])} onChange={(v) => setFold(k, v)} />
           ))}
         </div>
+        <details class="guide">
+          <summary>Como medir cada dobra</summary>
+          <dl>
+            {SKINFOLDS.map((k) => (
+              <div key={k}>
+                <dt>{SKINFOLD_LABEL[k]}</dt>
+                <dd>{SKINFOLD_GUIDE[k]}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
       </Card>
 
       <Card title="Perímetros (cm)">
@@ -127,6 +139,25 @@ export function Body() {
             {asymmetryAdvice(a) && <span>{asymmetryAdvice(a)}</span>}
           </div>
         ))}
+        <details class="guide">
+          <summary>Como medir cada perímetro</summary>
+          <dl>
+            {(Object.entries(PERIMETER_GUIDE) as [PerimeterSite, string][]).map(([k, txt]) => (
+              <div key={k}>
+                <dt>{PERIMETER_LABEL[k].replace(/ D$/, '')}</dt>
+                <dd>{txt}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      </Card>
+
+      <Card title="Para medidas comparáveis">
+        <ul class="rules-list">
+          {MEASURE_RULES.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
       </Card>
 
       <button class="btn" onClick={save}>

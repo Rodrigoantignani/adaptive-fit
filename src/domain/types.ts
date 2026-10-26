@@ -11,6 +11,8 @@ export interface Profile {
   spineCare: boolean;
   /** Escoliose: lado do tronco encurtado (côncavo). Gera o bloco corretivo. */
   scoliosis?: { shortSide: Side } | null;
+  /** Haglund / tendinopatia de Aquiles: limita carga e dorsiflexão no tornozelo. */
+  achilles?: { side: Side } | null;
 }
 
 export type SkinfoldSite =
@@ -101,6 +103,10 @@ export interface Exercise {
   restSec: number;
   axialLoad: boolean;
   coreDemand: 'low' | 'high';
+  /** Carga no tendão de Aquiles / dorsiflexão com peso. */
+  ankleLoad: 'none' | 'moderate' | 'high';
+  /** 'assisted': a carga é ajuda (contrapeso); progredir = tirar ajuda. */
+  loadMode: 'normal' | 'assisted';
   antagonist?: string;
   cue?: string;
 }
@@ -121,6 +127,8 @@ export interface CheckIn {
   soreness: SorenessArea[];
   spineAlert: boolean;
   split: SplitId;
+  /** Dor no tendão de Aquiles hoje, 0–10 (só com a condição no perfil). */
+  tendonPain?: number;
 }
 
 export type Tier = 'push' | 'maintain' | 'recover';
@@ -138,6 +146,8 @@ export interface ReadinessFlags {
   noAxial: boolean;
   noHighCore: boolean;
   reducedVolume: boolean;
+  /** 0 livre · 1 condição presente (sai carga alta) · 2 dor ≥ 5 (sai carga moderada também) */
+  ankleLevel: 0 | 1 | 2;
 }
 
 export interface Readiness {
@@ -172,7 +182,10 @@ export interface PlannedExercise {
   /** Lado mais fraco: começa por ele e, se `extraSet`, faz uma série a mais. */
   weakSide?: Side;
   extraSet?: boolean;
-  note?: string;
+  /** Avisos do dia: assimetria, músculo dolorido, tendão... */
+  notes?: string[];
+  /** Técnica sugerida para a última série (id de techniques.ts). */
+  technique?: string;
   supersetWith?: string;
   substitutedFor?: string;
 }
@@ -201,7 +214,8 @@ export interface Plan {
 
 /** Padrão de cada dia da semana; o check-in já nasce preenchido com ele. */
 export interface WeekDay {
-  split: SplitId | 'rest';
+  /** 'auto' = segue a alternância a partir do último treino. */
+  split: SplitId | 'rest' | 'auto';
   timeAvailMin: number;
   dayLoad: DayLoad;
 }

@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { fmtNum, parseNum } from '../lib/format';
 import type { Tone } from '../domain/types';
 
@@ -19,7 +19,10 @@ export function Card({ title, aside, children, class: cls = '' }: { title?: Comp
 
 const show = (v: number | undefined) => (v === undefined ? '' : fmtNum(v).replace(/\./g, ''));
 
-/** Campo numérico que aceita vírgula e não briga com o cursor enquanto digita. */
+/**
+ * Campo numérico que aceita vírgula. Enquanto está em foco, o texto é do usuário:
+ * apagar tudo para digitar outro número não volta para "0" nem pula o cursor.
+ */
 export function NumField({
   label,
   value,
@@ -34,9 +37,18 @@ export function NumField({
   placeholder?: string;
 }) {
   const [text, setText] = useState(show(value));
+  const [focused, setFocused] = useState(false);
+  // Último valor que este campo emitiu: diferença = mudança de fora (atalho, stepper).
+  const emitted = useRef(value);
   useEffect(() => {
-    if (parseNum(text) !== value) setText(show(value));
-  }, [value]);
+    const clearedByUser = focused && emitted.current === undefined;
+    if (value !== emitted.current && !clearedByUser) {
+      emitted.current = value;
+      setText(show(value));
+    } else if (!focused && parseNum(text) !== value) {
+      setText(show(value));
+    }
+  }, [value, focused]);
   return (
     <label class="field">
       <span>{label}</span>
@@ -46,15 +58,38 @@ export function NumField({
           autoComplete="off"
           value={text}
           placeholder={placeholder}
+          onFocus={(e) => {
+            setFocused(true);
+            e.currentTarget.select();
+          }}
+          onBlur={() => setFocused(false)}
           onInput={(e) => {
             const t = e.currentTarget.value;
             setText(t);
-            onChange(parseNum(t));
+            const n = parseNum(t);
+            if (n !== undefined || t.trim() === '') {
+              emitted.current = n;
+              onChange(n);
+            }
           }}
         />
         {suffix && <em>{suffix}</em>}
       </div>
     </label>
+  );
+}
+
+/** Atalhos de valor (ex.: tempo de treino 45/60/70/90). */
+export function Presets({ values, value, suffix, onPick }: { values: number[]; value: number | undefined; suffix: string; onPick: (v: number) => void }) {
+  return (
+    <div class="presets">
+      {values.map((v) => (
+        <button key={v} type="button" class={v === value ? 'on' : ''} aria-pressed={v === value} onClick={() => onPick(v)}>
+          {v}
+          {suffix}
+        </button>
+      ))}
+    </div>
   );
 }
 

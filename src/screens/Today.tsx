@@ -2,22 +2,24 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { discardSession, finishSession, logSet, removeSet, startSession, upsertCheckIn } from '../data/actions';
 import { app } from '../data/store';
 import { activeLibrary, exerciseById } from '../domain/exercises';
-import { performanceHistory, sessionRecords, sessionTotals } from '../domain/history';
+import { lastSideStrength, performanceHistory, sessionRecords, sessionTotals } from '../domain/history';
 import { ACTION_LABEL, DAY_LOAD_LABEL, SIDE_LABEL, SORENESS_LABEL, SPLIT_HINT, SPLIT_LABEL, SPLIT_ORDER, TIER_LABEL } from '../domain/labels';
 import { buildPlan, nextSide, setCount } from '../domain/planner';
 import { assessReadiness } from '../domain/readiness';
-import { dayDefaults, latestBilateral } from '../domain/routine';
+import { dayDefaults, latestBilateral, latestWeight } from '../domain/routine';
 import type { CheckIn, CorrectiveBlock, DayLoad, Exercise, PlannedExercise, Readiness, Session, SetLog, Side, SorenessArea, SplitId } from '../domain/types';
 import { formatBR, localISODate } from '../lib/date';
 import { useWakeLock } from '../lib/device';
 import { fmtDuration, fmtNum } from '../lib/format';
 import { uid } from '../lib/id';
-import { Card, Choice, Chips, Notice, NumField, Rating, Stepper, Toggle } from '../ui/kit';
+import { Card, Choice, Chips, Notice, NumField, Presets, Rating, Stepper, Toggle } from '../ui/kit';
 import { ObsidianActions } from '../ui/ObsidianActions';
-import { RestPresets, startRest } from '../ui/timer';
+import { TechniqueTag } from '../ui/TechniqueSheet';
+import { startRest } from '../ui/timer';
 import { ProfileForm } from './Settings';
 
 export const fmtLoad = (load: number | null, ex: Exercise) => {
+  if (ex.loadMode === 'assisted') return load === null ? 'ajuda a definir' : load === 0 ? 'sem ajuda' : `ajuda ${fmtNum(load)} kg`;
   if (load === null) return ex.equipment === 'bodyweight' ? 'peso corporal' : 'carga a definir';
   if (ex.equipment === 'bodyweight') return load > 0 ? `lastro ${fmtNum(load)} kg` : 'peso corporal';
   return `${fmtNum(load)} ${ex.loadUnit}`;
@@ -60,7 +62,7 @@ export function Today() {
 function newCheckIn(date: string): CheckIn {
   const { checkIns, sessions, settings } = app.value;
   const last = checkIns.at(-1);
-  const d = dayDefaults(date, settings.week, last, sessions, SPLIT_ORDER);
+  const d = dayDefaults(date, settings.week, last, sessions, settings.rotation);
   return {
     id: uid(),
     date,
@@ -80,7 +82,7 @@ function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void
   const set = <K extends keyof CheckIn>(k: K, v: CheckIn[K]) => setC((prev) => ({ ...prev, [k]: v }));
   const { profile, settings, checkIns, sessions } = app.value;
   const preview = assessReadiness(c, profile);
-  const defaults = dayDefaults(c.date, settings.week, checkIns.at(-1), sessions, SPLIT_ORDER);
+  const defaults = dayDefaults(c.date, settings.week, checkIns.at(-1), sessions, settings.rotation);
 
   return (
     <Card title="Check-in de prontidão" aside={formatBR(c.date)}>
@@ -93,6 +95,29 @@ function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void
         <NumField label="Horas de sono" suffix="h" value={c.sleepHours} onChange={(v) => set('sleepHours', v ?? 0)} />
         <NumField label="Tempo para treinar" suffix="min" value={c.timeAvailMin} onChange={(v) => set('timeAvailMin', v ?? 0)} />
       </div>
+      <Presets values={[45, 60, 70, 90]} suffix=" min" value={c.timeAvailMin} onPick={(v) => set('timeAvailMin', v)} />
+      {profile?.achilles && (
+        <div class="field">
+          <span>
+            Dor no tendão de Aquiles agora
+            <small class="muted"> · 0 = nada, 10 = muita</small>
+          </span>
+          <div class="rating pain" role="radiogroup">
+            {Array.from({ length: 11 }, (_, n) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={(c.tendonPain ?? 0) === n}
+                class={`${(c.tendonPain ?? 0) === n ? 'on' : ''} ${n >= 5 ? 'hi' : n >= 3 ? 'mid' : ''}`}
+                onClick={() => set('tendonPain', n)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <Rating label="Qualidade do sono" low="péssimo" high="perfeito" value={c.sleepQuality} onChange={(v) => set('sleepQuality', v)} />
       <Rating label="Energia agora" low="esgotado" high="elétrico" value={c.energy} onChange={(v) => set('energy', v)} />
       <Choice<DayLoad>
@@ -153,6 +178,8 @@ function usePlan(checkIn: CheckIn) {
         refLoads: settings.refLoads,
         profile,
         perimeters: latestBilateral(assessments)?.perimeters,
+        sideStrength: (id) => lastSideStrength(sessions, id),
+        learnedRest: settings.learnedRest,
       }),
     [checkIn, readiness, sessions, settings, customExercises, assessments, profile],
   );
@@ -285,14 +312,19 @@ function PlanRow({ item }: { item: PlannedExercise }) {
       <div class="plan-meta">
         {setsLabel(item, ex)} · {fmtLoad(item.target.load, ex)} · descanso {item.restSec}s
       </div>
-      {(partner || replaced || ex.photo) && (
+      {(partner || replaced || ex.photo || item.technique) && (
         <div class="tags">
           {ex.photo && <img class="thumb" src={ex.photo} alt="" />}
-          {partner && <span class="tag">super-série com {partner.name}</span>}
+          {partner && <TechniqueTag id="superset" prefix={`${partner.name} · `} />}
+          {item.technique && <TechniqueTag id={item.technique} prefix="Última série: " />}
           {replaced && <span class="tag">no lugar de {replaced.name}</span>}
         </div>
       )}
-      {item.note && <div class="tag warn">{item.note}</div>}
+      {(item.notes ?? []).map((n) => (
+        <div key={n} class="tag warn">
+          {n}
+        </div>
+      ))}
       <div class="plan-reason">{item.target.reason}</div>
     </li>
   );
@@ -331,7 +363,6 @@ function ActiveSession({ session }: { session: Session }) {
           </div>
         </div>
       </div>
-      <RestPresets />
       {session.corrective && <CorrectiveCard block={session.corrective} checkable />}
       {session.rules.length > 0 && (
         <details class="card rules-collapsed">
@@ -396,7 +427,7 @@ function ExerciseLogger({ session, item }: { session: Session; item: PlannedExer
       // descansa quando os dois lados estão empatados ou o outro lado já terminou
       if (n('L') !== n('R') && nextSide(after, item) !== side) return;
     }
-    startRest(item.restSec, `Descanso · ${ex.name}`);
+    startRest(app.value.settings.learnedRest[ex.id] ?? item.restSec, `Descanso · ${ex.name}`, ex.id);
   };
 
   return (
@@ -414,7 +445,16 @@ function ExerciseLogger({ session, item }: { session: Session; item: PlannedExer
         </span>
       </div>
       {partner && <div class="tag">{firstOfPair ? `Super-série: vá direto para ${partner.name}` : `Super-série com ${partner.name}: descanse agora`}</div>}
-      {item.note && <div class="tag warn">{item.note}</div>}
+      {item.technique && (
+        <div class="tags">
+          <TechniqueTag id={item.technique} prefix="Na última série: " />
+        </div>
+      )}
+      {(item.notes ?? []).map((n) => (
+        <div key={n} class="tag warn">
+          {n}
+        </div>
+      ))}
       {ex.cue && <div class="cue">{ex.cue}</div>}
       {sets.length > 0 && (
         <div class="set-pills">
@@ -442,7 +482,7 @@ function ExerciseLogger({ session, item }: { session: Session; item: PlannedExer
         </div>
       )}
       <div class="log-row">
-        <Stepper label={ex.loadUnit} value={load} step={ex.increment || 1} onChange={setLoad} />
+        <Stepper label={ex.loadMode === 'assisted' ? 'ajuda kg' : ex.loadUnit} value={load} step={ex.increment || 1} onChange={setLoad} />
         <Stepper label="reps" value={reps} step={1} onChange={setReps} />
         <button class="btn btn-log" onClick={log} aria-label={`Registrar série de ${ex.name}`}>
           ✓
@@ -454,7 +494,7 @@ function ExerciseLogger({ session, item }: { session: Session; item: PlannedExer
 
 function SessionSummary({ session }: { session: Session }) {
   const all = app.value.sessions;
-  const totals = sessionTotals(session);
+  const totals = sessionTotals(session, latestWeight(app.value.assessments));
   const records = sessionRecords(session, all);
   return (
     <Card title="Treino concluído" aside={`${totals.minutes} min`}>

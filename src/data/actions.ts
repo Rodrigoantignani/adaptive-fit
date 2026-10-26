@@ -17,6 +17,17 @@ export const setExerciseHidden = (id: string, hidden: boolean) =>
     return { ...s, settings: { ...s.settings, hiddenExercises: hidden ? [...rest, id] : rest } };
   });
 
+/** O cronômetro aprende: ajustou o descanso de um exercício, vale para as próximas. */
+export const learnRest = (exerciseId: string, sec: number) =>
+  mutate((s) => ({ ...s, settings: { ...s.settings, learnedRest: { ...s.settings.learnedRest, [exerciseId]: Math.round(sec / 5) * 5 } } }));
+
+export const forgetRest = (exerciseId: string) =>
+  mutate((s) => {
+    const learnedRest = { ...s.settings.learnedRest };
+    delete learnedRest[exerciseId];
+    return { ...s, settings: { ...s.settings, learnedRest } };
+  });
+
 export function setWeekDay(dow: number, day: WeekDay | null) {
   mutate((s) => {
     const week = { ...s.settings.week };

@@ -27,6 +27,42 @@ function workSets(sets: SetLog[]) {
  * `history` vem da sessão mais recente para a mais antiga.
  */
 export function nextTarget(
+  ex: Pick<Exercise, 'repMin' | 'repMax' | 'increment'> & Partial<Pick<Exercise, 'loadMode'>>,
+  history: Performance[],
+  tier: Tier,
+  refLoad?: number,
+): Target {
+  if (ex.loadMode === 'assisted') return assistedTarget(ex, history, tier, refLoad);
+  const t = normalTarget(ex, history, tier, refLoad);
+  return t.load !== null && t.load < 0 ? { ...t, load: 0 } : t;
+}
+
+/**
+ * Máquina com contrapeso: a "carga" registrada é ajuda. Roda a mesma dupla progressão
+ * com a ajuda negativa (menos ajuda = mais difícil) e reescreve as mensagens.
+ */
+function assistedTarget(ex: Pick<Exercise, 'repMin' | 'repMax' | 'increment'>, history: Performance[], tier: Tier, refLoad?: number): Target {
+  const flipped = history.map((h) => ({ ...h, sets: h.sets.map((s) => ({ ...s, load: -s.load })) }));
+  const t = normalTarget(ex, flipped, tier, refLoad === undefined ? undefined : -refLoad);
+  const help = t.load === null ? null : Math.max(0, -t.load);
+  const prev = t.action === 'increase' ? help! + ex.increment : t.action === 'decrease' ? help! - ex.increment : help;
+  const reasons: Record<Target['action'], string> = {
+    start: `Escolha a ajuda que permite ${ex.repMin}–${ex.repMax} reps com 1–2 na reserva.`,
+    increase:
+      help === 0
+        ? 'Ajuda zerada: na próxima, troque pela barra fixa livre (edite em Máquinas).'
+        : `Todas as séries no topo com ${fmtKg(prev ?? 0)} de ajuda: tire ${fmtKg(ex.increment)} e volte para ${ex.repMin} reps.`,
+    hold: t.reason
+      .replace(/com -?([\d.,]+) kg/g, 'com $1 kg de ajuda')
+      .replace('Mesma carga', 'Mesma ajuda')
+      .replace('mantenha a carga', 'mantenha a ajuda')
+      .replace('Pronto para subir carga', 'Pronto para tirar ajuda'),
+    decrease: `Duas sessões abaixo de ${ex.repMin} reps: coloque ${fmtKg(ex.increment)} a mais de ajuda e reconstrua.`,
+  };
+  return { ...t, load: help, reason: reasons[t.action] };
+}
+
+function normalTarget(
   ex: Pick<Exercise, 'repMin' | 'repMax' | 'increment'>,
   history: Performance[],
   tier: Tier,
@@ -69,7 +105,7 @@ export function nextTarget(
     const prev = done[1] ? workSets(done[1].sets) : null;
     if (prev && prev.load === load && prev.minReps < ex.repMin && ex.increment > 0) {
       return {
-        load: Math.max(0, round(load - ex.increment, 2)),
+        load: round(load - ex.increment, 2),
         reps: ex.repMin,
         action: 'decrease',
         reason: `Duas sessões abaixo de ${ex.repMin} reps com ${fmtKg(load)}: desça um degrau e reconstrua.`,

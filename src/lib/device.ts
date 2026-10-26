@@ -12,26 +12,32 @@ export function unlockAudio() {
   }
 }
 
-function beep() {
+function tone(freq: number, delay: number, dur: number, vol = 0.25) {
   if (!audio) return;
   const ctx = audio;
-  const t0 = ctx.currentTime;
-  [0, 0.22, 0.44].forEach((delay, i) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.frequency.value = i === 2 ? 1320 : 880;
-    gain.gain.setValueAtTime(0.0001, t0 + delay);
-    gain.gain.exponentialRampToValueAtTime(0.25, t0 + delay + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.18);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(t0 + delay);
-    osc.stop(t0 + delay + 0.2);
-  });
+  const t0 = ctx.currentTime + delay;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.02);
+}
+
+/** Bipe curto da contagem 3-2-1. */
+export function countdownTick() {
+  tone(660, 0, 0.12, 0.18);
+  navigator.vibrate?.(60);
 }
 
 export function restFinishedFeedback() {
   navigator.vibrate?.([250, 120, 250, 120, 400]);
-  beep();
+  tone(880, 0, 0.18);
+  tone(880, 0.22, 0.18);
+  tone(1320, 0.44, 0.45, 0.3);
 }
 
 /** Mantém a tela acesa durante o treino e readquire ao voltar para o app. */

@@ -15,8 +15,13 @@ Do uso pessoal até produto. Cada fase só começa quando a anterior foi validad
 - [x] Cadastro de máquinas com foto, edição e ocultação dos padrões
 - [x] Aquecimento corretivo para escoliose (lado encurtado)
 - [x] Assimetria → unilateral no plano, lado fraco primeiro, registro E/D
+- [x] Gráfico de força por lado (E × D) e assimetria ao longo do tempo
+- [x] Haglund / Aquiles com dor no check-in; barra assistida com progressão invertida
+- [x] Cronômetro sempre disponível, 3-2-1 com som, descanso aprendido por exercício
+- [x] Técnicas de treino com ficha e sugestão automática
 - [ ] Identificar máquina pela foto (visão computacional) e sugerir nome/músculo
-- [ ] Gráfico de força por lado (E × D) nos unilaterais
+- [ ] Escolher técnica manualmente no meio do treino e registrar drops/mini-séries
+- [ ] Notificação de fim de descanso com o app em segundo plano
 - [ ] Notificação de fim de descanso com o app em segundo plano
 - [ ] RIR/RPE por série para refinar a progressão
 - [ ] Deload automático (ex.: 3 sessões seguidas em "Recuperar" ou queda de 1RM)

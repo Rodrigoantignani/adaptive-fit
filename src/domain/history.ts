@@ -14,36 +14,57 @@ export function performanceHistory(sessions: Session[], exerciseId: string): Per
     .filter((p) => p.sets.length > 0);
 }
 
-/** Tonelagem; carga "por lado" conta os dois lados. */
-export function setVolume(set: SetLog, ex: Pick<Exercise, 'loadUnit'> | undefined): number {
+/**
+ * Tonelagem; carga "por lado" conta os dois lados.
+ * Assistida: o trabalho é o peso corporal menos a ajuda (0 se o peso é desconhecido).
+ */
+export function setVolume(set: SetLog, ex: Pick<Exercise, 'loadUnit' | 'loadMode'> | undefined, bodyweightKg?: number): number {
+  if (ex?.loadMode === 'assisted') return Math.max(0, (bodyweightKg ?? 0) - set.load) * set.reps;
   return set.load * set.reps * (ex?.loadUnit === 'kg/lado' ? 2 : 1);
 }
 
-export function sessionTotals(session: Session) {
+export function sessionTotals(session: Session, bodyweightKg?: number) {
   let sets = 0;
   let volume = 0;
   for (const entry of session.entries) {
     const ex = exerciseById(entry.exerciseId);
     for (const st of entry.sets) {
       sets++;
-      volume += setVolume(st, ex);
+      volume += setVolume(st, ex, bodyweightKg);
     }
   }
   const minutes = session.endedAt ? Math.round((session.endedAt - session.startedAt) / 60_000) : 0;
   return { sets, volume: Math.round(volume), minutes };
 }
 
+/** Melhor 1RM estimado de cada lado na sessão mais recente com séries por lado. */
+export function lastSideStrength(sessions: Session[], exerciseId: string): { L: number; R: number } | null {
+  for (const s of finishedDesc(sessions)) {
+    const sets = s.entries.find((e) => e.exerciseId === exerciseId)?.sets.filter((x) => x.side) ?? [];
+    if (!sets.length) continue;
+    return { L: bestE1rm(sets.filter((x) => x.side === 'L')), R: bestE1rm(sets.filter((x) => x.side === 'R')) };
+  }
+  return null;
+}
+
 /** Recordes de 1RM estimado batidos nesta sessão contra todas as anteriores. */
 export function sessionRecords(session: Session, all: Session[]) {
   const before = all.filter((s) => s.endedAt && s.id !== session.id && s.startedAt < session.startedAt);
   return session.entries.flatMap((entry) => {
-    if (!entry.sets.length) return [];
+    if (!entry.sets.length || exerciseById(entry.exerciseId)?.loadMode === 'assisted') return [];
     const now = bestE1rm(entry.sets);
     const prevSets = before.flatMap((s) => s.entries.find((e) => e.exerciseId === entry.exerciseId)?.sets ?? []);
     if (!prevSets.length) return [];
     const prev = bestE1rm(prevSets);
     return now > prev ? [{ exerciseId: entry.exerciseId, e1rm: round(now), previous: round(prev) }] : [];
   });
+}
+
+/** Rotação fixa (ex.: Superior ↔ Inferior): o próximo depois do último treinado. */
+export function nextInRotation(sessions: Session[], rotation: SplitId[]): SplitId {
+  const last = finishedDesc(sessions).find((s) => rotation.includes(s.split));
+  if (!last) return rotation[0];
+  return rotation[(rotation.indexOf(last.split) + 1) % rotation.length];
 }
 
 /** Sugere o split treinado há mais tempo (nunca treinado vence). */

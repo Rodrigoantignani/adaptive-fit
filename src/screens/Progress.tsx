@@ -2,11 +2,12 @@ import type { ChartConfiguration } from 'chart.js';
 import { useMemo, useState } from 'preact/hooks';
 import { deleteAssessment } from '../data/actions';
 import { app } from '../data/store';
-import { analyzeAsymmetry } from '../domain/asymmetry';
+import { analyzeAsymmetry, BILATERAL_PAIRS } from '../domain/asymmetry';
 import { exerciseById } from '../domain/exercises';
-import { performanceHistory, sessionTotals } from '../domain/history';
+import { lastSideStrength, performanceHistory, sessionTotals } from '../domain/history';
 import { CONDITION_LABEL, PERIMETER_LABEL } from '../domain/labels';
 import { bestE1rm } from '../domain/progression';
+import { latestWeight } from '../domain/routine';
 import type { PerimeterSite } from '../domain/types';
 import { formatBR, localISODate, parseISO, shortBR, weekStart } from '../lib/date';
 import { fmtNum, round } from '../lib/format';
@@ -61,14 +62,63 @@ export function Progress() {
   const strength = useMemo((): ChartConfiguration<'line'> | null => {
     if (!selectedEx) return null;
     const hist = performanceHistory(sessions, selectedEx).reverse();
+    const assisted = exerciseById(selectedEx)?.loadMode === 'assisted';
     return {
       type: 'line',
       data: {
         labels: hist.map((h) => shortBR(h.date)),
-        datasets: [{ label: '1RM estimado', data: hist.map((h) => round(bestE1rm(h.sets))), borderColor: COLORS.success, tension: 0.3 }],
+        datasets: [
+          assisted
+            ? { label: 'Menor ajuda usada (kg) · quanto menor, melhor', data: hist.map((h) => Math.min(...h.sets.map((s) => s.load))), borderColor: COLORS.info, tension: 0.3 }
+            : { label: '1RM estimado', data: hist.map((h) => round(bestE1rm(h.sets))), borderColor: COLORS.success, tension: 0.3 },
+        ],
       },
     };
   }, [sessions, selectedEx]);
+
+  /** E − D em % do maior lado: negativo = esquerdo menor. Mostra se a correção está funcionando. */
+  const asymTrend = useMemo((): ChartConfiguration<'line'> | null => {
+    const rows = assessments.filter((a) => analyzeAsymmetry(a.perimeters).length > 0);
+    if (rows.length < 1) return null;
+    const palette = [COLORS.primary, COLORS.info, COLORS.success, COLORS.danger];
+    return {
+      type: 'line',
+      data: {
+        labels: rows.map((a) => shortBR(a.date)),
+        datasets: BILATERAL_PAIRS.map((p, i) => ({
+          label: p.label,
+          data: rows.map((a) => {
+            const r = a.perimeters[p.r];
+            const l = a.perimeters[p.l];
+            return r && l ? round(((l - r) / Math.max(l, r)) * 100) : null;
+          }),
+          borderColor: palette[i],
+          spanGaps: true,
+          tension: 0.3,
+        })).filter((d) => d.data.some((v) => v !== null)),
+      },
+      options: { scales: { y: { title: { display: true, text: 'E − D (%)' } } } },
+    };
+  }, [assessments]);
+
+  /** Último 1RM estimado por lado nos unilaterais. */
+  const sideBars = useMemo((): ChartConfiguration<'bar'> | null => {
+    const rows = trained
+      .map((id) => ({ id, s: lastSideStrength(sessions, id) }))
+      .filter((r): r is { id: string; s: { L: number; R: number } } => !!r.s && r.s.L > 0 && r.s.R > 0);
+    if (!rows.length) return null;
+    return {
+      type: 'bar',
+      data: {
+        labels: rows.map((r) => exerciseById(r.id)?.name ?? r.id),
+        datasets: [
+          { label: 'Esquerdo', data: rows.map((r) => round(r.s.L)), backgroundColor: COLORS.info, borderRadius: 4 },
+          { label: 'Direito', data: rows.map((r) => round(r.s.R)), backgroundColor: COLORS.primary, borderRadius: 4 },
+        ],
+      },
+      options: { indexAxis: 'y' },
+    };
+  }, [sessions, trained]);
 
   const weekly = useMemo((): ChartConfiguration<'bar'> | null => {
     const finished = sessions.filter((s) => s.endedAt);
@@ -83,13 +133,13 @@ export function Progress() {
     const vol = new Map(weeks.map((w) => [w, 0]));
     for (const s of finished) {
       const w = weekStart(s.date);
-      if (vol.has(w)) vol.set(w, vol.get(w)! + sessionTotals(s).volume);
+      if (vol.has(w)) vol.set(w, vol.get(w)! + sessionTotals(s, latestWeight(assessments)).volume);
     }
     return {
       type: 'bar',
       data: { labels: weeks.map(shortBR), datasets: [{ label: 'Volume semanal (kg)', data: weeks.map((w) => vol.get(w)!), backgroundColor: COLORS.primary, borderRadius: 4 }] },
     };
-  }, [sessions]);
+  }, [sessions, assessments]);
 
   const symmetry = useMemo((): ChartConfiguration<'bar'> | null => {
     const last = assessments.findLast((a) => analyzeAsymmetry(a.perimeters).length > 0);
@@ -150,6 +200,15 @@ export function Progress() {
       <Card title="Volume semanal">{weekly ? <ChartCanvas config={weekly} height={180} /> : <Empty text="Sem treinos registrados." />}</Card>
 
       <Card title="Simetria bilateral">{symmetry ? <ChartCanvas config={symmetry} height={200} /> : <Empty text="Meça os dois lados para comparar." />}</Card>
+
+      <Card title="Assimetria ao longo do tempo">
+        {asymTrend ? <ChartCanvas config={asymTrend} height={200} /> : <Empty text="Meça os dois lados em mais de uma avaliação." />}
+        <p class="muted small">Abaixo de zero = lado esquerdo menor. A meta é a linha subir até perto de 0.</p>
+      </Card>
+
+      <Card title="Força por lado (unilaterais)">
+        {sideBars ? <ChartCanvas config={sideBars} height={Math.max(140, 60 + 40 * (sideBars.data.labels?.length ?? 1))} /> : <Empty text="Registre séries de exercícios unilaterais (E/D) para comparar." />}
+      </Card>
 
       <Card title="Histórico de avaliações">
         {assessments.length === 0 && <Empty text="Nenhuma avaliação." />}

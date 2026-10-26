@@ -4,7 +4,8 @@ import { emptyState, mergeAssessments, parseBackup } from '../data/schema';
 import { app, commit, hasSnapshot, mutate, restoreSnapshot, takeSnapshot } from '../data/store';
 import { DAY_LOAD_LABEL, SPLIT_LABEL, SPLIT_ORDER, WEEKDAY_LABEL } from '../domain/labels';
 import { dataviewSnippet } from '../domain/obsidian';
-import type { DayLoad, Profile, Sex, Side, WeekDay } from '../domain/types';
+import type { DayLoad, Profile, Sex, Side, SplitId, WeekDay } from '../domain/types';
+import { TechniqueGlossary } from '../ui/TechniqueSheet';
 import { localISODate } from '../lib/date';
 import { copyText, downloadText } from '../lib/device';
 import { Card, Choice, Notice, NumField, Toggle } from '../ui/kit';
@@ -62,6 +63,23 @@ export function ProfileForm() {
           ]}
         />
       )}
+      <Toggle
+        label="Haglund / tendinite de Aquiles"
+        hint="Tira panturrilha no degrau, pergunta a dor no check-in e ajusta o treino de pernas."
+        checked={!!f.achilles}
+        onChange={(v) => set('achilles', v ? { side: f.achilles?.side ?? 'L' } : null)}
+      />
+      {f.achilles && (
+        <Choice<Side>
+          label="Qual pé"
+          value={f.achilles.side}
+          onChange={(v) => set('achilles', { side: v })}
+          options={[
+            { value: 'L', label: 'Esquerdo' },
+            { value: 'R', label: 'Direito' },
+          ]}
+        />
+      )}
       <button
         class="btn"
         disabled={!f.birthDate}
@@ -86,9 +104,22 @@ function WeekCard() {
     const cur = week[dow] ?? { split: 'full_body', timeAvailMin: 60, dayLoad: 'light' };
     setWeekDay(dow, { ...cur, ...patch });
   };
+  const rotation = app.value.settings.rotation;
+  const ROTATIONS: { value: string; label: string; hint: string; splits: SplitId[] }[] = [
+    { value: 'upper,lower', label: 'Sup ↔ Inf', hint: 'Alterna todo dia', splits: ['upper', 'lower'] },
+    { value: 'full_body', label: 'Full body', hint: 'Sempre corpo todo', splits: ['full_body'] },
+    { value: 'full_body,upper,lower', label: 'Full → Sup → Inf', hint: 'Ciclo de 3', splits: ['full_body', 'upper', 'lower'] },
+  ];
   return (
     <Card title="Rotina semanal">
-      <p class="muted small">O check-in de cada dia já vem com o treino, o tempo e a demanda daqui. Dá para mudar na hora.</p>
+      <Choice<string>
+        label="Alternância (quando o dia está como Livre)"
+        cols={3}
+        value={rotation.join(',')}
+        onChange={(v) => saveSettings({ rotation: ROTATIONS.find((r) => r.value === v)!.splits })}
+        options={ROTATIONS.map(({ value, label, hint }) => ({ value, label, hint }))}
+      />
+      <p class="muted small">Por dia, defina o tempo e a demanda. Deixe o treino como "Livre" para seguir a alternância a partir do último treino feito.</p>
       <div class="week">
         {WEEK_ORDER.map((dow) => {
           const d = week[dow];
@@ -104,7 +135,8 @@ function WeekCard() {
                   else update(dow, { split: v as WeekDay['split'] });
                 }}
               >
-                <option value="">Livre</option>
+                <option value="">Sem padrão</option>
+                <option value="auto">Livre (alterna)</option>
                 <option value="rest">Descanso</option>
                 {SPLIT_ORDER.map((s) => (
                   <option key={s} value={s}>
@@ -188,6 +220,11 @@ export function Settings() {
       </Card>
 
       <WeekCard />
+
+      <Card title="Técnicas de treino">
+        <p class="muted small">Toque para ver como fazer. O plano sugere algumas sozinho (drop-set, rest-pause, superlento) conforme a prontidão e o tempo.</p>
+        <TechniqueGlossary />
+      </Card>
 
       <Card title="Seus dados">
         <Notice tone="info">

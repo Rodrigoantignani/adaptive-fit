@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'preact/hooks';
-import { removeCustomExercise, saveExercise, saveSettings, setExerciseHidden, setRefLoad } from '../data/actions';import { app } from '../data/store';
+import { forgetRest, removeCustomExercise, saveExercise, saveSettings, setExerciseHidden, setRefLoad } from '../data/actions';import { app } from '../data/store';
 import { DEFAULT_EXERCISES, isDefaultExercise, newExercise } from '../domain/exercises';
 import { EQUIPMENT_LABEL, MUSCLE_LABEL, SPLIT_LABEL, SPLIT_ORDER } from '../domain/labels';
 import type { Equipment, Exercise, Muscle, SplitId } from '../domain/types';
@@ -104,6 +104,7 @@ function ExerciseEditor({ initial, onClose }: { initial: Exercise; onClose: () =
   const isDefault = isDefaultExercise(e.id);
   const isEdited = customExercises.some((x) => x.id === e.id);
   const isHidden = settings.hiddenExercises.includes(e.id);
+  const learned = settings.learnedRest[e.id];
   const valid = e.name.trim().length > 1 && e.repMin > 0 && e.repMax >= e.repMin && e.sets > 0;
 
   const onPhoto = async (file?: File) => {
@@ -181,15 +182,20 @@ function ExerciseEditor({ initial, onClose }: { initial: Exercise; onClose: () =
           onChange={(v) => set('equipment', v)}
           options={(Object.keys(EQUIPMENT_LABEL) as Equipment[]).map((k) => ({ value: k, label: EQUIPMENT_LABEL[k] }))}
         />
-        <Choice<Exercise['loadUnit']>
+        <Choice<string>
           label="Como a carga é marcada"
-          value={e.loadUnit}
-          onChange={(v) => set('loadUnit', v)}
+          cols={3}
+          value={e.loadMode === 'assisted' ? 'assisted' : e.loadUnit}
+          onChange={(v) =>
+            setE((x) => (v === 'assisted' ? { ...x, loadMode: 'assisted', loadUnit: 'kg' } : { ...x, loadMode: 'normal', loadUnit: v as Exercise['loadUnit'] }))
+          }
           options={[
             { value: 'kg', label: 'kg total' },
-            { value: 'kg/lado', label: 'kg por lado', hint: 'Anilhas dos dois lados' },
+            { value: 'kg/lado', label: 'kg por lado', hint: 'Anilhas dos 2 lados' },
+            { value: 'assisted', label: 'Contrapeso', hint: 'kg de ajuda' },
           ]}
         />
+        {e.loadMode === 'assisted' && <p class="muted small">Progressão invertida: o app sugere tirar ajuda quando você bate o topo das reps.</p>}
         <Toggle label="Unilateral" hint="Um lado por vez: o app registra E/D e começa pelo lado mais fraco." checked={e.unilateral} onChange={(v) => set('unilateral', v)} />
         <div class="grid-3">
           <NumField label="Séries" value={e.sets} onChange={(v) => set('sets', Math.round(v ?? 0))} />
@@ -197,8 +203,29 @@ function ExerciseEditor({ initial, onClose }: { initial: Exercise; onClose: () =
           <NumField label="Reps máx." value={e.repMax} onChange={(v) => set('repMax', Math.round(v ?? 0))} />
           <NumField label="Descanso" suffix="s" value={e.restSec} onChange={(v) => set('restSec', Math.round(v ?? 0))} />
           <NumField label="Degrau" suffix="kg" value={e.increment} onChange={(v) => set('increment', v ?? 0)} />
-          <NumField label="Carga inicial" suffix="kg" value={refLoad} onChange={setRef} />
+          <NumField label={e.loadMode === 'assisted' ? 'Ajuda inicial' : 'Carga inicial'} suffix="kg" value={refLoad} onChange={setRef} />
         </div>
+        {learned !== undefined && (
+          <div class="learned">
+            <span>
+              Descanso aprendido no cronômetro: <b>{learned} s</b>
+            </span>
+            <button class="link" onClick={() => forgetRest(e.id)}>
+              voltar para {e.restSec} s
+            </button>
+          </div>
+        )}
+        <Choice<Exercise['ankleLoad']>
+          label="Carga no tendão de Aquiles"
+          cols={3}
+          value={e.ankleLoad}
+          onChange={(v) => set('ankleLoad', v)}
+          options={[
+            { value: 'none', label: 'Nenhuma' },
+            { value: 'moderate', label: 'Moderada', hint: 'Dorsiflexão com peso' },
+            { value: 'high', label: 'Alta', hint: 'Degrau, saltos' },
+          ]}
+        />
         <Toggle label="Carga sobre a coluna" hint="Barra nas costas, carga axial: sai em dias de proteção lombar." checked={e.axialLoad} onChange={(v) => set('axialLoad', v)} />
         <Toggle
           label="Exige muito do core"

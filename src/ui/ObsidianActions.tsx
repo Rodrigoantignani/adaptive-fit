@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import { app } from '../data/store';
 import { buildDailyNote, notePath, obsidianNewUri } from '../domain/obsidian';
 import { assessReadiness } from '../domain/readiness';
+import { latestWeight } from '../domain/routine';
 import { copyText, downloadText } from '../lib/device';
 
 /** Monta a nota do dia a partir do que existir: check-in, treino e/ou avaliação. */
@@ -14,6 +15,7 @@ export function noteForDate(date: string): string {
     readiness: checkIn ? assessReadiness(checkIn, s.profile) : null,
     session: s.sessions.findLast((x) => x.date === date && x.endedAt) ?? null,
     assessment: s.assessments.find((a) => a.date === date) ?? null,
+    bodyweightKg: latestWeight(s.assessments),
   });
 }
 

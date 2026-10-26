@@ -1,6 +1,6 @@
 import { parseISO } from '../lib/date';
 import { analyzeAsymmetry } from './asymmetry';
-import { suggestSplit } from './history';
+import { nextInRotation } from './history';
 import type { BodyAssessment, CheckIn, Session, SplitId, WeekDay } from './types';
 
 export interface DayDefaults {
@@ -13,24 +13,25 @@ export interface DayDefaults {
 }
 
 /**
- * Valores iniciais do check-in: a rotina semanal manda; sem rotina para o dia,
- * usa o último check-in e o split treinado há mais tempo.
+ * Valores iniciais do check-in: a rotina semanal manda no tempo e na demanda;
+ * o treino vem da rotina do dia ou, sem ela, da rotação (ex.: Superior ↔ Inferior).
  */
 export function dayDefaults(
   date: string,
   week: Record<string, WeekDay>,
   last: CheckIn | undefined,
   sessions: Session[],
-  order: SplitId[],
+  rotationOrder: SplitId[],
 ): DayDefaults {
   const day = week[String(parseISO(date).getDay())];
-  const rotation = suggestSplit(sessions, date, order).split;
+  const rotation = nextInRotation(sessions, rotationOrder);
   if (day) {
+    const fixed = day.split !== 'rest' && day.split !== 'auto';
     return {
-      split: day.split === 'rest' ? rotation : day.split,
+      split: fixed ? (day.split as SplitId) : rotation,
       timeAvailMin: day.timeAvailMin,
       dayLoad: day.dayLoad,
-      source: day.split === 'rest' ? 'rotation' : 'routine',
+      source: fixed ? 'routine' : 'rotation',
       restDay: day.split === 'rest',
     };
   }
@@ -42,6 +43,10 @@ export function dayDefaults(
     restDay: false,
   };
 }
+
+/** Peso da avaliação mais recente (para o volume de exercícios assistidos). */
+export const latestWeight = (assessments: BodyAssessment[]) =>
+  [...assessments].sort((a, b) => a.date.localeCompare(b.date)).at(-1)?.weightKg;
 
 /** Avaliação mais recente que tenha ao menos um par bilateral medido. */
 export function latestBilateral(assessments: BodyAssessment[]): BodyAssessment | undefined {

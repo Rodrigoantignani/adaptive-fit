@@ -1,20 +1,20 @@
 import { SIDE_LABEL } from './labels';
-import type { CorrectiveBlock, Profile } from './types';
+import type { CorrectiveBlock, CorrectiveItem, Profile } from './types';
 
 /**
- * Aquecimento corretivo para escoliose leve, orientado pelo lado encurtado (côncavo).
- * Exercícios de baixo risco e amplamente usados em reeducação postural; não substituem fisioterapia.
+ * Aquecimento corretivo montado a partir das condições do perfil.
+ * Exercícios de baixo risco, usados em reabilitação; não substituem fisioterapia.
  */
-export function correctiveBlock(profile: Pick<Profile, 'scoliosis'> | null | undefined): CorrectiveBlock | null {
+export function correctiveBlock(profile: Pick<Profile, 'scoliosis' | 'achilles'> | null | undefined, tendonPain = 0): CorrectiveBlock | null {
+  const items: CorrectiveItem[] = [];
+  let minutes = 0;
+
   const sc = profile?.scoliosis;
-  if (!sc) return null;
-  const short = SIDE_LABEL[sc.shortSide];
-  const other = SIDE_LABEL[sc.shortSide === 'L' ? 'R' : 'L'];
-  return {
-    title: 'Aquecimento corretivo · escoliose',
-    minutes: 5,
-    disclaimer: 'Complementar ao treino. A ênfase ideal depende do tipo de curva: valide com um fisioterapeuta.',
-    items: [
+  if (sc) {
+    const short = SIDE_LABEL[sc.shortSide];
+    const other = SIDE_LABEL[sc.shortSide === 'L' ? 'R' : 'L'];
+    minutes += 5;
+    items.push(
       {
         id: 'side_stretch',
         title: `Alongamento lateral do lado ${short}`,
@@ -39,6 +39,35 @@ export function correctiveBlock(profile: Pick<Profile, 'scoliosis'> | null | und
         dose: '2 × 20–30 s por lado',
         how: 'Apoio no antebraço, corpo em linha reta. Comece com os joelhos no chão se precisar.',
       },
-    ],
+    );
+  }
+
+  const ach = profile?.achilles;
+  if (ach) {
+    const side = SIDE_LABEL[ach.side];
+    minutes += 3;
+    items.push(
+      tendonPain >= 5
+        ? {
+            id: 'calf_iso_seated',
+            title: 'Isometria de panturrilha sentado',
+            dose: '4 × 30 s, dor até 3/10',
+            how: `Sentado, pés no chão. Empurre a ponta do pé ${side} contra o chão sem tirar o calcanhar, com força moderada. Ajuda a baixar a dor.`,
+          }
+        : {
+            id: 'calf_iso_flat',
+            title: 'Isometria de panturrilha no chão plano',
+            dose: '4 × 30–45 s, dor até 3/10',
+            how: `Em pé no chão plano (nunca no degrau), suba na ponta dos pés e segure. Apoie as mãos na parede. Pode ser só no pé ${side}.`,
+          },
+    );
+  }
+
+  if (!items.length) return null;
+  return {
+    title: 'Aquecimento corretivo',
+    minutes,
+    disclaimer: 'Complementar ao treino. A dose e a ênfase ideais dependem da sua avaliação: valide com um fisioterapeuta.',
+    items,
   };
 }

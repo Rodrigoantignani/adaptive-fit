@@ -17,6 +17,12 @@ PWA instalável, funciona offline e guarda **todos os dados no próprio aparelho
 | **Encaixe no tempo** | Se não cabe, monta super-séries de antagonistas, depois corta acessórios (super-série sai em par) e só então reduz a base. |
 | **Escoliose** | Informando o lado encurtado, todo plano ganha um aquecimento corretivo de ~5 min (alongamento lateral, respiração dirigida, bird dog, prancha lateral). |
 | **Assimetrias** | A última avaliação vira treino: diferença ≥ 5% entre lados coloca um unilateral no plano, começando pelo lado fraco e com série extra nele. Registro por lado (E/D). |
+| **Haglund / Aquiles** | Dor do tendão (0–10) no check-in. Sempre sem panturrilha no degrau; com dor ≥ 5 saem também os exercícios com dorsiflexão sob carga, e o aquecimento ganha isometria de panturrilha. |
+| **Barra assistida** | Contrapeso em kg com progressão invertida: bateu o topo das reps, o app manda tirar ajuda; zerou, sugere a barra livre. |
+| **Cronômetro de descanso** | Botão ⏱ sempre à mão, bipes em 3-2-1, som e vibração no fim, contador de séries. Ajustou o descanso de um exercício? O app aprende e usa da próxima vez. |
+| **Técnicas de treino** | 18 técnicas com ficha explicativa (rest-pause, drop-set, cluster, FST-7...). O plano sugere algumas sozinho, só em máquinas, conforme a prontidão e o tempo. |
+| **Assimetria de força** | Unilaterais registrados por lado viram comparação E × D e definem o lado fraco quando a fita métrica não definiu. |
+| **Guia de medidas** | Como medir cada dobra e perímetro para avaliações comparáveis. |
 | **Máquinas da sua academia** | Cadastre máquinas novas com foto (comprimida no aparelho), dias, prioridade, unilateral, carga inicial e ajuste da máquina. Edite ou oculte as padrão. |
 | **Dupla progressão** | Bateu o topo da faixa em todas as séries → sobe carga. Duas sessões abaixo da faixa → desce um degrau. Em modo recuperação, nunca sobe. |
 | **Registro de treino** | Séries com stepper (+/−), timer de descanso automático baseado em timestamp (não atrasa com a tela bloqueada), vibração + bipe e tela sempre acesa. |

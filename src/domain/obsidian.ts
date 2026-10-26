@@ -13,6 +13,8 @@ export interface NoteInput {
   readiness?: Readiness | null;
   session?: Session | null;
   assessment?: BodyAssessment | null;
+  /** Para o volume de exercícios assistidos. */
+  bodyweightKg?: number;
 }
 
 type Yaml = string | number | boolean | string[];
@@ -26,7 +28,7 @@ const yamlValue = (v: Yaml): string => {
 const snake = (s: string) => s.replace(/([A-Z])/g, '_$1').toLowerCase();
 
 /** Nota diária em Markdown com frontmatter YAML pronto para Dataview. */
-export function buildDailyNote({ date, checkIn, readiness, session, assessment }: NoteInput): string {
+export function buildDailyNote({ date, checkIn, readiness, session, assessment, bodyweightKg }: NoteInput): string {
   const fm: [string, Yaml][] = [
     ['date', date],
     ['type', 'adaptive-fit'],
@@ -65,14 +67,14 @@ export function buildDailyNote({ date, checkIn, readiness, session, assessment }
   }
 
   if (session) {
-    const t = sessionTotals(session);
+    const t = sessionTotals(session, bodyweightKg);
     fm.push(['session_sets', t.sets], ['session_volume_kg', t.volume], ['session_minutes', t.minutes]);
     body.push('## Execução', '', '| Exercício | Séries (carga × reps) | Volume | 1RM est. |', '|---|---|---|---|');
     for (const entry of session.entries) {
       if (!entry.sets.length) continue;
       const ex = exerciseById(entry.exerciseId);
       const sets = entry.sets.map((s) => `${s.side ? (s.side === 'L' ? 'E ' : 'D ') : ''}${fmtNum(s.load)}×${s.reps}`).join(' · ');
-      const vol = Math.round(entry.sets.reduce((a, s) => a + setVolume(s, ex), 0));
+      const vol = Math.round(entry.sets.reduce((a, s) => a + setVolume(s, ex, bodyweightKg), 0));
       body.push(`| ${ex?.name ?? entry.exerciseId} | ${sets} ${ex?.loadUnit ?? 'kg'} | ${fmtNum(vol)} kg | ${fmtNum(round(bestE1rm(entry.sets)))} |`);
     }
     body.push('', `**Total:** ${t.sets} séries · ${fmtNum(t.volume)} kg · ${t.minutes} min`, '');
