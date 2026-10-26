@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ageOn, localISODate, weekStart } from '../lib/date';
 import { parseNum } from '../lib/format';
-import { fromLegacy, mergeAssessments, migrate, parseBackup } from '../data/schema';
+import { fromLegacy, mergeAssessments, mergeSeed, migrate, parseBackup } from '../data/schema';
+import { analyzeDiet, dailyTopUps } from './dietCoach';
+import { calibrationFactor, dailyEnergy, dayLoadFromWork, hoursBetween, macroTargets } from './energy';
+import { equivalentGrams, foodById, planMacros, type Meal } from './foods';
 import { analyzeAsymmetry } from './asymmetry';
 import { bodyDensity, computeBodyComp, siri } from './bodycomp';
 import { activeLibrary, EXERCISES, newExercise } from './exercises';
@@ -11,7 +14,7 @@ import { buildDailyNote, obsidianNewUri } from './obsidian';
 import { buildPlan, estimateSeconds, isAmrapNext, nextSide, setCount } from './planner';
 import { nextTarget } from './progression';
 import { assessReadiness } from './readiness';
-import { dayDefaults } from './routine';
+import { dayDefaults, sleepGuess } from './routine';
 import type { CheckIn, PlannedExercise, Session, SetLog } from './types';
 
 const checkIn = (over: Partial<CheckIn> = {}): CheckIn => ({
@@ -75,7 +78,7 @@ describe('prontidão', () => {
   });
 
   it('sono curto nunca deixa progredir e força máquinas', () => {
-    const r = assessReadiness(checkIn({ sleepHours: 6, energy: 5, sleepQuality: 5 }), null);
+    const r = assessReadiness(checkIn({ sleepHours: 5.5, energy: 5, sleepQuality: 5 }), null);
     expect(r.tier).not.toBe('push');
     expect(r.flags.machinesOnly).toBe(true);
     expect(r.rules.some((x) => x.id === 'cns')).toBe(true);
@@ -411,6 +414,138 @@ describe('postura e segurança', () => {
       ],
     } as unknown as Session;
     expect(weeklySetsByMuscle([sess], '2026-10-26').get('back')).toBe(5);
+  });
+});
+
+describe('energia e dieta', () => {
+  const user = { sex: 'M' as const, age: 38, weightKg: 79.5, leanKg: 71.9 };
+  const PLAN: Meal[] = [
+    { id: 'a', name: 'Café', time: '09:00', items: [{ foodId: 'chicken_breast', grams: 100 }, { foodId: 'egg', grams: 200 }, { foodId: 'mozzarella', grams: 20 }, { foodId: 'parmesan', grams: 20 }] },
+    { id: 'b', name: 'Almoço', time: '13:00', items: [{ foodId: 'chicken_breast', grams: 200 }, { foodId: 'spinach', grams: 200 }, { foodId: 'white_rice', grams: 100 }] },
+    { id: 'c', name: 'Tarde', time: '16:30', items: [{ foodId: 'yogurt_plain', grams: 200 }, { foodId: 'almonds', grams: 20 }, { foodId: 'chia', grams: 10 }] },
+    { id: 'd', name: 'Jantar', time: '19:00', items: [{ foodId: 'egg', grams: 200 }, { foodId: 'parmesan', grams: 10 }, { foodId: 'mozzarella', grams: 10 }, { foodId: 'banana', grams: 100 }] },
+  ];
+
+  it('Katch-McArdle e componentes do gasto', () => {
+    const rest = dailyEnergy({ ...user, trainingMin: 0 });
+    expect(rest.method).toBe('Katch-McArdle');
+    expect(rest.bmr).toBe(Math.round(370 + 21.6 * 71.9));
+    const hard = dailyEnergy({ ...user, trainingMin: 70, work: { sittingH: 8, standingH: 3.5 } });
+    expect(hard.standing).toBe(Math.round(1.7 * 79.5 * 3.5));
+    expect(hard.total).toBeGreaterThan(rest.total + 700);
+  });
+
+  it('agenda vira demanda do dia', () => {
+    expect(dayLoadFromWork({ sittingH: 8, standingH: 0 })).toBe('light');
+    expect(dayLoadFromWork({ sittingH: 8, standingH: 3.5 })).toBe('standing');
+    expect(dayLoadFromWork({ sittingH: 0, standingH: 4.5 })).toBe('standing');
+    expect(dayLoadFromWork({ sittingH: 8, standingH: 5 })).toBe('double');
+    expect(hoursBetween('19:30', '23:00')).toBe(3.5);
+    expect(hoursBetween('22:00', '01:00')).toBe(3);
+  });
+
+  it('carboidrato acompanha o dia; proteína e gordura fixas', () => {
+    const rest = macroTargets(dailyEnergy({ ...user, trainingMin: 0 }), 'recomp', 79.5, 71.9, false);
+    const hard = macroTargets(dailyEnergy({ ...user, trainingMin: 70, work: { sittingH: 8, standingH: 3.5 } }), 'recomp', 79.5, 71.9, true, 3.5);
+    expect(hard.protein).toBe(rest.protein);
+    expect(hard.fat).toBe(rest.fat);
+    expect(hard.carbs).toBeGreaterThan(rest.carbs + 150);
+    expect(hard.waterL).toBeGreaterThan(rest.waterL);
+  });
+
+  it('plano base atual: ~1.850 kcal, proteína alta, carbo baixo', () => {
+    const m = planMacros(PLAN);
+    expect(m.kcal).toBeGreaterThan(1650);
+    expect(m.kcal).toBeLessThan(1950);
+    expect(m.protein).toBeGreaterThan(155);
+    expect(m.carbs).toBeLessThan(90);
+  });
+
+  it('leitura aponta déficit e carbo baixo; complemento fecha o carboidrato', () => {
+    const m = planMacros(PLAN);
+    const rest = macroTargets(dailyEnergy({ ...user, trainingMin: 0 }), 'recomp', 79.5, 71.9, false);
+    const hard = macroTargets(dailyEnergy({ ...user, trainingMin: 70, work: { sittingH: 8, standingH: 3.5 } }), 'recomp', 79.5, 71.9, true, 3.5);
+    const ids = analyzeDiet(m, rest, hard, { weightKg: 79.5, meals: PLAN, achilles: true, shiftDays: 2 }).map((f) => f.id);
+    expect(ids).toEqual(expect.arrayContaining(['deficit', 'carbs', 'protein', 'collagen', 'caffeine']));
+    const tops = dailyTopUps(m, hard, { trained: true, standing: true });
+    const added = tops.reduce((a, t) => a + t.carbs, 0);
+    expect(m.carbs + added).toBeGreaterThan(hard.carbs * 0.85);
+    expect(tops.some((t) => t.when.includes('turno'))).toBe(true);
+  });
+});
+
+describe('dados reais vencem a fórmula', () => {
+  it('peso estável comendo menos que a fórmula ⇒ fator < 1, com limites', () => {
+    expect(calibrationFactor(1900, 2600)).toBeCloseTo(0.73, 2);
+    expect(calibrationFactor(800, 2600)).toBe(0.6);
+    expect(calibrationFactor(4000, 2600)).toBe(1.3);
+    const e = dailyEnergy({ sex: 'M', age: 38, weightKg: 79.5, leanKg: 71.9, trainingMin: 70, walkMin: 15, calibration: 0.75 });
+    expect(e.walk).toBeGreaterThan(0);
+    expect(Math.abs(e.total - e.formula * 0.75)).toBeLessThanOrEqual(1);
+  });
+
+  it('jejum + carbo só no almoço: nada antes do treino nem no café', () => {
+    const base = { kcal: 1850, protein: 180, carbs: 80, fat: 85, fiber: 15 };
+    const target = { kcal: 2600, protein: 158, fat: 72, carbs: 400, waterL: 4 };
+    const tops = dailyTopUps(base, target, { trained: true, standing: true, fasted: true, allowed: ['lunch', 'preShift'] });
+    expect(tops.length).toBeGreaterThan(0);
+    for (const t of tops) expect(t.when).toMatch(/Almoço|turno/);
+  });
+
+  it('6 h de sono após turno: treino normal sem recorde; < 6 h: proteção', () => {
+    const six = assessReadiness(checkIn({ sleepHours: 6, energy: 4 }), null);
+    expect(six.tier).not.toBe('push');
+    expect(six.flags.machinesOnly).toBe(false);
+    expect(six.rules.some((r) => r.id === 'short_sleep')).toBe(true);
+    expect(assessReadiness(checkIn({ sleepHours: 5.5 }), null).flags.machinesOnly).toBe(true);
+  });
+
+  it('check-in já vem com ~6 h depois de noite de turno até tarde', () => {
+    const week = { '5': { split: 'auto' as const, timeAvailMin: 70, dayLoad: 'standing' as const, work: { sittingH: 8, standingH: 3.5, standingStart: '19:30', standingEnd: '23:00' } } };
+    expect(sleepGuess('2026-10-31', week)).toBe(6); // sábado, depois da sexta de turno
+    expect(sleepGuess('2026-10-28', week)).toBe(7.5);
+  });
+});
+
+describe('carboidrato sem sono', () => {
+  it('troca equivalente mantém o macro principal', () => {
+    expect(equivalentGrams('white_rice', 100, 'sweet_potato')).toBe(140);
+    expect(equivalentGrams('white_rice', 200, 'sweet_potato')).toBe(280);
+    expect(equivalentGrams('chicken_breast', 200, 'salmon')).toBe(310);
+  });
+
+  it('evitar picos: IG baixo no almoço e porção maior no jantar', () => {
+    const base = { kcal: 1850, protein: 180, carbs: 80, fat: 85, fiber: 15 };
+    const target = { kcal: 2400, protein: 158, fat: 72, carbs: 260, waterL: 4 };
+    const tops = dailyTopUps(base, target, { trained: true, standing: false, fasted: true, avoidSpikes: true });
+    const lunch = tops.find((t) => t.when === 'Almoço')!;
+    const dinner = tops.find((t) => t.when === 'Jantar')!;
+    expect(foodById(lunch.foodId)?.gi).toBe('low');
+    expect(dinner.carbs).toBeGreaterThan(lunch.carbs);
+  });
+
+  it('leitura: low-carb não é cetogênica e sugere troca do arroz', () => {
+    const meals: Meal[] = [{ id: 'x', name: 'Almoço', time: '13:00', items: [{ foodId: 'chicken_breast', grams: 200 }, { foodId: 'white_rice', grams: 100 }] }];
+    const t = { kcal: 2400, protein: 158, fat: 72, carbs: 260, waterL: 4 };
+    const f = analyzeDiet(planMacros(meals), t, t, { weightKg: 79.5, meals, achilles: false, shiftDays: 0, avoidSpikes: true });
+    expect(f.find((x) => x.id === 'lowcarb')?.title).toContain('não cetogênica');
+    expect(f.find((x) => x.id === 'gi')?.detail).toContain('140 g de batata-doce cozida');
+  });
+});
+
+describe('importação de dados iniciais', () => {
+  it('mescla sem apagar o que já existe', () => {
+    const cur = { ...migrate(null), settings: { ...migrate(null).settings, refLoads: { a: 50 } } };
+    cur.sessions = [{ id: 's' } as unknown as Session];
+    const seed = { ...migrate(null), settings: { ...migrate(null).settings, refLoads: { a: 10, b: 20 }, mealPlan: [{ id: 'm', name: 'x', time: '09:00', items: [] }] } };
+    seed.settings.trainsFasted = true;
+    seed.settings.carbSlots = ['lunch'];
+    const out = mergeSeed(cur, seed);
+    expect(out.sessions).toHaveLength(1);
+    expect(out.settings.refLoads).toEqual({ a: 50, b: 20 });
+    expect(out.settings.mealPlan).toHaveLength(1);
+    expect(out.settings.trainsFasted).toBe(true);
+    expect(out.settings.carbSlots).toEqual(['lunch']);
   });
 });
 

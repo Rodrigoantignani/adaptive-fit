@@ -25,6 +25,9 @@ PWA instalável, funciona offline e guarda **todos os dados no próprio aparelho
 | **Avaliação funcional** | A cada 6 semanas: dorsiflexão (joelho na parede), braço acima da cabeça, panturrilha unilateral, teste de Adams, dorsal que não ativa e fotos posturais com grade. Os achados mudam o plano: puxada unilateral para o dorsal fraco, alongamento/ativação no aquecimento, avisos nos exercícios. |
 | **Lado fraco dita as reps** | Unilateral: fraco primeiro, forte repete as mesmas reps, e no fim uma série extra no fraco até o máximo de reps, registrada para acompanhar a evolução. |
 | **Sinais de alerta e regra das 24 h** | Formigamento/dor que irradia deixa a sessão leve e recomenda avaliação; dor do tendão que piorou após o último treino ativa a proteção do Aquiles. |
+| **Agenda de trabalho** | Por dia da semana: horas sentado e turno em pé (início/fim). Define a demanda física do check-in, o gasto calórico e o sono esperado (noite de turno até tarde ⇒ check-in já vem com ~6 h). |
+| **Dieta** | Gasto do dia (Katch-McArdle pela massa magra + rotina + turno em pé + treino + caminhada), macros por dia (proteína e gordura fixas, carboidrato acompanha o gasto), plano alimentar em gramas com troca equivalente automática, complemento do dia respeitando jejum, refeições aceitas e IG baixo quando o carboidrato dá sono. |
+| **Calibração pelo peso** | Peso estável comendo o plano ⇒ o gasto real é a ingestão: as metas passam a usar o dado observado, não só a fórmula. |
 | **Guia de medidas** | Como medir cada dobra e perímetro para avaliações comparáveis. |
 | **Máquinas da sua academia** | Cadastre máquinas novas com foto (comprimida no aparelho), dias, prioridade, unilateral, carga inicial e ajuste da máquina. Edite ou oculte as padrão. |
 | **Dupla progressão** | Bateu o topo da faixa em todas as séries → sobe carga. Duas sessões abaixo da faixa → desce um degrau. Em modo recuperação, nunca sobe. |

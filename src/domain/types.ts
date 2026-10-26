@@ -246,12 +246,22 @@ export interface Plan {
   dropped: { exerciseId: string; reason: string }[];
 }
 
+/** Agenda de trabalho do dia: define a demanda física e o gasto calórico. */
+export interface WorkDay {
+  sittingH: number;
+  /** Turno em pé (ex.: restaurante). */
+  standingH: number;
+  standingStart?: string;
+  standingEnd?: string;
+}
+
 /** Padrão de cada dia da semana; o check-in já nasce preenchido com ele. */
 export interface WeekDay {
   /** 'auto' = segue a alternância a partir do último treino. */
   split: SplitId | 'rest' | 'auto';
   timeAvailMin: number;
   dayLoad: DayLoad;
+  work?: WorkDay;
 }
 
 export interface SessionEntry {

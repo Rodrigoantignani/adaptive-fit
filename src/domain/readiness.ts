@@ -31,8 +31,10 @@ export function assessReadiness(c: CheckIn, profile: Pick<Profile, 'spineCare' |
   }
 
   let tier: Tier = score >= 70 ? 'push' : score >= 45 ? 'maintain' : 'recover';
-  const cns = c.sleepHours < 6.5 || c.dayLoad === 'double';
-  if (cns && tier === 'push') tier = 'maintain';
+  // < 6 h: proteção completa. 6–6,5 h (ex.: noite de turno): treina normal, só não busca recorde.
+  const cns = c.sleepHours < 6 || c.dayLoad === 'double';
+  const shortSleep = !cns && c.sleepHours < 6.5;
+  if ((cns || shortSleep) && tier === 'push') tier = 'maintain';
   if (c.radiating) tier = 'recover';
 
   const noAxial = Boolean(profile?.spineCare) || c.spineAlert || c.soreness.includes('lower_back') || Boolean(c.radiating);
@@ -53,8 +55,16 @@ export function assessReadiness(c: CheckIn, profile: Pick<Profile, 'spineCare' |
   if (tier === 'recover') {
     rules.push({ id: 'recover', tone: 'warn', title: 'Sessão de recuperação', detail: 'Uma série a menos por exercício, sem subir carga e +30 s de descanso. Hoje, treinar leve rende mais que forçar.' });
   }
+  if (shortSleep) {
+    rules.push({
+      id: 'short_sleep',
+      tone: 'info',
+      title: 'Sono um pouco curto',
+      detail: `${fmtNum(c.sleepHours)} h: volume normal, mas sem buscar recorde hoje. Mantenha as cargas e deixe 1–2 reps na reserva.`,
+    });
+  }
   if (cns) {
-    const why = c.sleepHours < 6.5 ? 'Sono curto' : 'Turno duplo';
+    const why = c.sleepHours < 6 ? 'Sono curto' : 'Turno duplo';
     rules.push({ id: 'cns', tone: 'warn', title: 'Proteção do sistema nervoso', detail: `${why}: volume reduzido, só máquinas guiadas e 5 min de alongamento de descompressão antes de dormir.` });
   }
   if (noAxial) {

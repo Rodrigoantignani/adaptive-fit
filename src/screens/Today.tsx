@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { discardSession, finishSession, logSet, removeSet, startSession, upsertCheckIn } from '../data/actions';
+import { nutritionFor } from '../data/nutrition';
 import { app } from '../data/store';
 import { activeLibrary, exerciseById } from '../domain/exercises';
 import { functionalFlags, latestFunctional, reassessDue } from '../domain/functional';
@@ -67,7 +68,7 @@ function newCheckIn(date: string): CheckIn {
   return {
     id: uid(),
     date,
-    sleepHours: last?.sleepHours ?? 7,
+    sleepHours: d.sleepGuess,
     sleepQuality: 3,
     energy: 3,
     dayLoad: d.dayLoad,
@@ -93,7 +94,7 @@ function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void
         </Notice>
       )}
       <div class="grid-2">
-        <NumField label="Horas de sono" suffix="h" value={c.sleepHours} onChange={(v) => set('sleepHours', v ?? 0)} />
+        <NumField label="Sono (noite passada)" suffix="h" value={c.sleepHours} onChange={(v) => set('sleepHours', v ?? 0)} />
         <NumField label="Tempo para treinar" suffix="min" value={c.timeAvailMin} onChange={(v) => set('timeAvailMin', v ?? 0)} />
       </div>
       <Presets values={[45, 60, 70, 90]} suffix=" min" value={c.timeAvailMin} onPick={(v) => set('timeAvailMin', v)} />
@@ -249,6 +250,7 @@ function CorrectiveCard({ block, checkable }: { block: CorrectiveBlock; checkabl
 
 function PlanView({ checkIn, onEdit, trainedToday }: { checkIn: CheckIn; onEdit: () => void; trainedToday: boolean }) {
   const { readiness, plan } = usePlan(checkIn);
+  const fuel = nutritionFor(app.value, checkIn.date);
   return (
     <>
       <Card
@@ -271,6 +273,17 @@ function PlanView({ checkIn, onEdit, trainedToday }: { checkIn: CheckIn; onEdit:
           </ul>
         </div>
       </Card>
+
+      {fuel && (
+        <div class="fuel-line">
+          <span>Hoje</span>
+          <b>{fmtNum(fuel.macros.kcal)} kcal</b>
+          <span>
+            P {fuel.macros.protein} · C {fuel.macros.carbs} · G {fuel.macros.fat} g
+          </span>
+          {fuel.energy.standing > 0 && <i>turno em pé</i>}
+        </div>
+      )}
 
       {plan.rules.length > 0 && (
         <Card title="Diretrizes do dia">

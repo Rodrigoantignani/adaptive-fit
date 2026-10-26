@@ -1,5 +1,6 @@
 import { parseISO } from '../lib/date';
 import { analyzeAsymmetry } from './asymmetry';
+import { dayLoadFromWork } from './energy';
 import { nextInRotation } from './history';
 import type { BodyAssessment, CheckIn, Session, SplitId, WeekDay } from './types';
 
@@ -10,6 +11,16 @@ export interface DayDefaults {
   /** De onde veio o split sugerido. */
   source: 'routine' | 'rotation';
   restDay: boolean;
+  /** Palpite de sono: noite de turno até tarde costuma render ~6 h. */
+  sleepGuess: number;
+}
+
+/** Turno em pé ontem terminando 22h ou mais tarde ⇒ ~6 h de sono; senão o padrão. */
+export function sleepGuess(date: string, week: Record<string, WeekDay>, usual = 7.5): number {
+  const y = parseISO(date);
+  y.setDate(y.getDate() - 1);
+  const end = week[String(y.getDay())]?.work?.standingEnd;
+  return end && end >= '22:00' ? 6 : usual;
 }
 
 /**
@@ -30,9 +41,10 @@ export function dayDefaults(
     return {
       split: fixed ? (day.split as SplitId) : rotation,
       timeAvailMin: day.timeAvailMin,
-      dayLoad: day.dayLoad,
+      dayLoad: day.work ? dayLoadFromWork(day.work) : day.dayLoad,
       source: fixed ? 'routine' : 'rotation',
       restDay: day.split === 'rest',
+      sleepGuess: sleepGuess(date, week),
     };
   }
   return {
@@ -41,6 +53,7 @@ export function dayDefaults(
     dayLoad: last?.dayLoad ?? 'light',
     source: 'rotation',
     restDay: false,
+    sleepGuess: sleepGuess(date, week),
   };
 }
 

@@ -1,3 +1,6 @@
+import type { CarbSlot } from '../domain/dietCoach';
+import type { NutritionGoal } from '../domain/energy';
+import type { Meal, MealItem } from '../domain/foods';
 import { round } from '../lib/format';
 import type { BodyAssessment, CheckIn, Exercise, FunctionalTest, MeasureCondition, PerimeterSite, Profile, Session, SplitId, WeekDay } from '../domain/types';
 
@@ -17,6 +20,26 @@ export interface Settings {
   rotation: SplitId[];
   /** Descanso entre séries que o usuário ajustou no cronômetro, por exercício. */
   learnedRest: Record<string, number>;
+  nutritionGoal: NutritionGoal;
+  /** Anotações livres sobre a dieta. */
+  dietBase: string;
+  /** Plano alimentar base: refeições com alimentos e gramas. */
+  mealPlan: Meal[];
+  /** O que se come a mais nos dias de turno em pé. */
+  shiftExtras: MealItem[];
+  /**
+   * Calibração pelo peso real: "peso estável comendo este plano" ⇒
+   * gasto real = ingestão; fator aplicado sobre a fórmula.
+   */
+  calibration: { factor: number; date: string; observedKcal: number } | null;
+  /** Treina em jejum (de manhã): sem lanche pré-treino nas sugestões. */
+  trainsFasted: boolean;
+  /** Caminhada diária leve (ex.: passeio com o cachorro), minutos. */
+  dailyWalkMin: number;
+  /** Onde o usuário aceita carboidrato extra. */
+  carbSlots: CarbSlot[];
+  /** Carboidrato dá sono no trabalho sentado: IG baixo de dia, porção maior à noite. */
+  avoidSpikes: boolean;
 }
 
 export interface AppState {
@@ -43,6 +66,15 @@ export const emptyState = (): AppState => ({
     week: {},
     rotation: ['upper', 'lower'],
     learnedRest: {},
+    nutritionGoal: 'recomp',
+    dietBase: '',
+    mealPlan: [],
+    shiftExtras: [],
+    calibration: null,
+    trainsFasted: false,
+    dailyWalkMin: 0,
+    carbSlots: ['preWorkout', 'breakfast', 'lunch', 'preShift', 'dinner'],
+    avoidSpikes: false,
   },
   customExercises: [],
   checkIns: [],
@@ -157,6 +189,43 @@ export function parseBackup(text: string): ParsedBackup {
   const raw: unknown = JSON.parse(text);
   if (Array.isArray(raw)) return { kind: 'legacy', assessments: fromLegacy(raw) };
   return { kind: 'full', state: migrate(raw) };
+}
+
+/**
+ * Mescla um arquivo de dados iniciais (sem treinos) no estado atual sem apagar nada:
+ * o que já existe aqui vence; do arquivo entra só o que falta.
+ */
+export function mergeSeed(current: AppState, seed: AppState): AppState {
+  const cs = current.settings;
+  const ss = seed.settings;
+  const defaults = emptyState().settings;
+  // Preferência ainda no valor padrão = o usuário não mexeu: aceita a do arquivo.
+  const pick = <K extends keyof Settings>(k: K): Settings[K] => (JSON.stringify(cs[k]) === JSON.stringify(defaults[k]) ? ss[k] : cs[k]);
+  const byDate = <T extends { date: string }>(a: T[], b: T[]) => [...a, ...b.filter((x) => !a.some((y) => y.date === x.date))].sort((x, y) => x.date.localeCompare(y.date));
+  return {
+    ...current,
+    profile: current.profile ?? seed.profile,
+    settings: {
+      ...cs,
+      refLoads: { ...ss.refLoads, ...cs.refLoads },
+      week: Object.keys(cs.week).length ? cs.week : ss.week,
+      mealPlan: cs.mealPlan.length ? cs.mealPlan : ss.mealPlan,
+      shiftExtras: cs.shiftExtras.length ? cs.shiftExtras : ss.shiftExtras,
+      calibration: cs.calibration ?? ss.calibration,
+      trainsFasted: pick('trainsFasted'),
+      dailyWalkMin: pick('dailyWalkMin'),
+      carbSlots: pick('carbSlots'),
+      avoidSpikes: pick('avoidSpikes'),
+      nutritionGoal: pick('nutritionGoal'),
+      rotation: pick('rotation'),
+      dietBase: cs.dietBase || ss.dietBase,
+      obsidianVault: cs.obsidianVault || ss.obsidianVault,
+      gymName: cs.gymName || ss.gymName,
+    },
+    customExercises: [...current.customExercises, ...seed.customExercises.filter((e) => !current.customExercises.some((c) => c.id === e.id))],
+    assessments: byDate(current.assessments, seed.assessments),
+    functionalTests: byDate(current.functionalTests, seed.functionalTests),
+  };
 }
 
 /** Junta avaliações sem duplicar a mesma data. */

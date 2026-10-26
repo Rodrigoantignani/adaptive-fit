@@ -1,10 +1,11 @@
 import { useState } from 'preact/hooks';
 import { saveProfile, saveSettings, setWeekDay } from '../data/actions';
-import { emptyState, mergeAssessments, parseBackup } from '../data/schema';
+import { emptyState, mergeAssessments, mergeSeed, parseBackup } from '../data/schema';
 import { app, commit, hasSnapshot, mutate, restoreSnapshot, takeSnapshot } from '../data/store';
 import { DAY_LOAD_LABEL, SPLIT_LABEL, SPLIT_ORDER, WEEKDAY_LABEL } from '../domain/labels';
 import { dataviewSnippet } from '../domain/obsidian';
-import type { DayLoad, Profile, Sex, Side, SplitId, WeekDay } from '../domain/types';
+import { dayLoadFromWork, hoursBetween } from '../domain/energy';
+import type { Profile, Sex, Side, SplitId, WeekDay, WorkDay } from '../domain/types';
 import { TechniqueGlossary } from '../ui/TechniqueSheet';
 import { localISODate } from '../lib/date';
 import { copyText, downloadText } from '../lib/device';
@@ -119,44 +120,62 @@ function WeekCard() {
         onChange={(v) => saveSettings({ rotation: ROTATIONS.find((r) => r.value === v)!.splits })}
         options={ROTATIONS.map(({ value, label, hint }) => ({ value, label, hint }))}
       />
-      <p class="muted small">Por dia, defina o tempo e a demanda. Deixe o treino como "Livre" para seguir a alternância a partir do último treino feito.</p>
+      <p class="muted small">
+        Por dia: treino, tempo e agenda de trabalho. A agenda define a demanda física do check-in e o gasto calórico da aba Dieta. "Livre" segue a alternância a
+        partir do último treino feito.
+      </p>
       <div class="week">
         {WEEK_ORDER.map((dow) => {
           const d = week[dow];
+          const work = d?.work ?? { sittingH: 0, standingH: 0 };
+          const setWork = (patch: Partial<WorkDay>) => {
+            const next = { ...work, ...patch };
+            if (next.standingStart && next.standingEnd) next.standingH = hoursBetween(next.standingStart, next.standingEnd);
+            if (!next.standingStart || !next.standingEnd) next.standingH = 0;
+            update(dow, { work: next, dayLoad: dayLoadFromWork(next) });
+          };
+          const load = d?.work ? dayLoadFromWork(d.work) : d?.dayLoad;
           return (
-            <div key={dow} class="week-row">
-              <strong>{WEEKDAY_LABEL[dow].slice(0, 3)}</strong>
-              <select
-                aria-label={`Treino de ${WEEKDAY_LABEL[dow]}`}
-                value={d?.split ?? ''}
-                onChange={(e) => {
-                  const v = e.currentTarget.value;
-                  if (!v) setWeekDay(dow, null);
-                  else update(dow, { split: v as WeekDay['split'] });
-                }}
-              >
-                <option value="">Sem padrão</option>
-                <option value="auto">Livre (alterna)</option>
-                <option value="rest">Descanso</option>
-                {SPLIT_ORDER.map((s) => (
-                  <option key={s} value={s}>
-                    {SPLIT_LABEL[s]}
-                  </option>
-                ))}
-              </select>
-              {d && d.split !== 'rest' ? (
-                <>
+            <div key={dow} class="week-day">
+              <div class="week-row">
+                <strong>{WEEKDAY_LABEL[dow].slice(0, 3)}</strong>
+                <select
+                  aria-label={`Treino de ${WEEKDAY_LABEL[dow]}`}
+                  value={d?.split ?? ''}
+                  onChange={(e) => {
+                    const v = e.currentTarget.value;
+                    if (!v) setWeekDay(dow, null);
+                    else update(dow, { split: v as WeekDay['split'] });
+                  }}
+                >
+                  <option value="">Sem padrão</option>
+                  <option value="auto">Livre (alterna)</option>
+                  <option value="rest">Descanso</option>
+                  {SPLIT_ORDER.map((s) => (
+                    <option key={s} value={s}>
+                      {SPLIT_LABEL[s]}
+                    </option>
+                  ))}
+                </select>
+                {d && d.split !== 'rest' ? (
                   <NumField label="" suffix="min" value={d.timeAvailMin} onChange={(v) => update(dow, { timeAvailMin: v ?? 0 })} />
-                  <select aria-label={`Demanda de ${WEEKDAY_LABEL[dow]}`} value={d.dayLoad} onChange={(e) => update(dow, { dayLoad: e.currentTarget.value as DayLoad })}>
-                    {(Object.keys(DAY_LOAD_LABEL) as DayLoad[]).map((k) => (
-                      <option key={k} value={k}>
-                        {DAY_LOAD_LABEL[k].label}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              ) : (
-                <span class="muted small span-2">{d ? 'Recuperação' : 'Sem padrão'}</span>
+                ) : (
+                  <span class="muted small">{d ? 'sem treino' : ''}</span>
+                )}
+                <span class="muted small">{load ? DAY_LOAD_LABEL[load].label : ''}</span>
+              </div>
+              {d && (
+                <div class="work-row">
+                  <NumField label="Sentado" suffix="h" value={work.sittingH || undefined} onChange={(v) => setWork({ sittingH: v ?? 0 })} />
+                  <label class="field">
+                    <span>Em pé de</span>
+                    <input type="time" value={work.standingStart ?? ''} onInput={(e) => setWork({ standingStart: e.currentTarget.value || undefined })} />
+                  </label>
+                  <label class="field">
+                    <span>até</span>
+                    <input type="time" value={work.standingEnd ?? ''} onInput={(e) => setWork({ standingEnd: e.currentTarget.value || undefined })} />
+                  </label>
+                </div>
               )}
             </div>
           );
@@ -184,9 +203,14 @@ export function Settings() {
         flash(added ? `${added} avaliação(ões) do protótipo importadas` : 'Essas avaliações já estavam aqui');
         return;
       }
-      if (!confirm('Substituir TODOS os dados atuais pelo backup? Dá para desfazer logo em seguida.')) return;
       await takeSnapshot();
-      // Arquivo sem perfil (ex.: dados-pessoais.json) não apaga o perfil já preenchido.
+      // Sem treinos = arquivo de dados iniciais (ex.: dados-pessoais.json): mescla sem apagar nada.
+      if (parsed.state.sessions.length === 0) {
+        commit(mergeSeed(app.value, parsed.state));
+        flash('Dados mesclados (nada foi apagado)');
+        return;
+      }
+      if (!confirm('Substituir TODOS os dados atuais pelo backup? Dá para desfazer logo em seguida.')) return;
       commit({ ...parsed.state, profile: parsed.state.profile ?? app.value.profile });
       flash('Backup restaurado');
     } catch (e) {
