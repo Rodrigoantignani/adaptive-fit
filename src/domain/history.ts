@@ -1,8 +1,8 @@
-import { daysBetween } from '../lib/date';
+import { daysBetween, weekStart } from '../lib/date';
 import { round } from '../lib/format';
 import { exerciseById } from './exercises';
 import { bestE1rm, type Performance } from './progression';
-import type { Exercise, Session, SetLog, SplitId } from './types';
+import type { Exercise, Muscle, Session, SetLog, SplitId } from './types';
 
 const finishedDesc = (sessions: Session[]) =>
   sessions.filter((s) => s.endedAt).sort((a, b) => b.startedAt - a.startedAt);
@@ -40,11 +40,43 @@ export function sessionTotals(session: Session, bodyweightKg?: number) {
 /** Melhor 1RM estimado de cada lado na sessão mais recente com séries por lado. */
 export function lastSideStrength(sessions: Session[], exerciseId: string): { L: number; R: number } | null {
   for (const s of finishedDesc(sessions)) {
-    const sets = s.entries.find((e) => e.exerciseId === exerciseId)?.sets.filter((x) => x.side) ?? [];
+    // Série máxima do lado fraco fica de fora: a comparação é entre séries equivalentes.
+    const sets = s.entries.find((e) => e.exerciseId === exerciseId)?.sets.filter((x) => x.side && !x.amrap) ?? [];
     if (!sets.length) continue;
     return { L: bestE1rm(sets.filter((x) => x.side === 'L')), R: bestE1rm(sets.filter((x) => x.side === 'R')) };
   }
   return null;
+}
+
+/**
+ * Séries semanais por músculo principal (unilateral: E + D = 1 série).
+ * Referência de hipertrofia: ~10–20 séries/semana por músculo.
+ */
+export function weeklySetsByMuscle(sessions: Session[], weekStartIso: string): Map<Muscle, number> {
+  const out = new Map<Muscle, number>();
+  for (const s of sessions) {
+    if (!s.endedAt || weekStart(s.date) !== weekStartIso) continue;
+    for (const e of s.entries) {
+      const ex = exerciseById(e.exerciseId);
+      if (!ex || !e.sets.length) continue;
+      const n = e.sets.reduce((a, st) => a + (st.side ? 0.5 : 1), 0);
+      out.set(ex.muscle, (out.get(ex.muscle) ?? 0) + n);
+    }
+  }
+  return out;
+}
+
+/** Séries máximas do lado fraco por exercício (mais antiga → mais recente): o termômetro da correção. */
+export function amrapHistory(sessions: Session[]) {
+  const out = new Map<string, { date: string; load: number; reps: number; side?: 'L' | 'R' }[]>();
+  for (const s of [...finishedDesc(sessions)].reverse()) {
+    for (const e of s.entries) {
+      for (const st of e.sets.filter((x) => x.amrap)) {
+        out.set(e.exerciseId, [...(out.get(e.exerciseId) ?? []), { date: s.date, load: st.load, reps: st.reps, side: st.side }]);
+      }
+    }
+  }
+  return out;
 }
 
 /** Recordes de 1RM estimado batidos nesta sessão contra todas as anteriores. */

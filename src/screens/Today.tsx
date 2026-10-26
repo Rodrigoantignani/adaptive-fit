@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { discardSession, finishSession, logSet, removeSet, startSession, upsertCheckIn } from '../data/actions';
 import { app } from '../data/store';
 import { activeLibrary, exerciseById } from '../domain/exercises';
+import { functionalFlags, latestFunctional, reassessDue } from '../domain/functional';
 import { lastSideStrength, performanceHistory, sessionRecords, sessionTotals } from '../domain/history';
 import { ACTION_LABEL, DAY_LOAD_LABEL, SIDE_LABEL, SORENESS_LABEL, SPLIT_HINT, SPLIT_LABEL, SPLIT_ORDER, TIER_LABEL } from '../domain/labels';
-import { buildPlan, nextSide, setCount } from '../domain/planner';
+import { buildPlan, isAmrapNext, nextSide, setCount } from '../domain/planner';
 import { assessReadiness } from '../domain/readiness';
 import { dayDefaults, latestBilateral, latestWeight } from '../domain/routine';
 import type { CheckIn, CorrectiveBlock, DayLoad, Exercise, PlannedExercise, Readiness, Session, SetLog, Side, SorenessArea, SplitId } from '../domain/types';
@@ -135,6 +136,20 @@ function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void
       {!profile?.spineCare && (
         <Toggle label="Alerta lombar hoje" hint="Bloqueia carga axial só nesta sessão." checked={c.spineAlert} onChange={(v) => set('spineAlert', v)} />
       )}
+      {profile?.achilles && (
+        <Toggle
+          label="A dor do tendão piorou depois do último treino?"
+          hint="Regra das 24 h: se na manhã seguinte doeu mais que antes, a carga passou do ponto."
+          checked={!!c.tendonWorse}
+          onChange={(v) => set('tendonWorse', v)}
+        />
+      )}
+      <Toggle
+        label="Formigamento ou dor que irradia"
+        hint="Sinal de alerta: o treino fica leve e sem carga na coluna."
+        checked={!!c.radiating}
+        onChange={(v) => set('radiating', v)}
+      />
       <Choice<SplitId>
         label="Treino do dia"
         cols={3}
@@ -166,7 +181,7 @@ function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void
 }
 
 function usePlan(checkIn: CheckIn) {
-  const { profile, sessions, settings, customExercises, assessments } = app.value;
+  const { profile, sessions, settings, customExercises, assessments, functionalTests } = app.value;
   const readiness = useMemo(() => assessReadiness(checkIn, profile), [checkIn, profile]);
   const plan = useMemo(
     () =>
@@ -180,8 +195,10 @@ function usePlan(checkIn: CheckIn) {
         perimeters: latestBilateral(assessments)?.perimeters,
         sideStrength: (id) => lastSideStrength(sessions, id),
         learnedRest: settings.learnedRest,
+        functional: functionalFlags(latestFunctional(functionalTests)),
+        reassess: reassessDue(functionalTests, checkIn.date),
       }),
-    [checkIn, readiness, sessions, settings, customExercises, assessments, profile],
+    [checkIn, readiness, sessions, settings, customExercises, assessments, profile, functionalTests],
   );
   return { readiness, plan };
 }
@@ -295,7 +312,7 @@ function PlanView({ checkIn, onEdit, trainedToday }: { checkIn: CheckIn; onEdit:
 function setsLabel(item: PlannedExercise, ex: Exercise) {
   const reps = `${ex.repMin}–${ex.repMax}`;
   if (!item.perSide) return `${item.sets} × ${reps}`;
-  const extra = item.extraSet && item.weakSide ? ` +1 no ${SIDE_LABEL[item.weakSide]}` : '';
+  const extra = item.extraSet && item.weakSide ? ` + 1 máx. de reps no ${SIDE_LABEL[item.weakSide]}` : '';
   return `${item.sets} × ${reps} por lado${extra}`;
 }
 
@@ -409,6 +426,7 @@ function ExerciseLogger({ session, item }: { session: Session; item: PlannedExer
   const [reps, setReps] = useState<number | undefined>(last?.reps ?? item.target.reps);
   const [sideOverride, setSideOverride] = useState<Side | null>(null);
   const side = item.perSide ? (sideOverride ?? nextSide(sets, item)) : undefined;
+  const amrapNow = side !== undefined && side === item.weakSide && isAmrapNext(sets, item);
   const total = setCount(item);
   const complete = sets.length >= total;
   const order = session.plan.map((p) => p.exerciseId);
@@ -417,7 +435,7 @@ function ExerciseLogger({ session, item }: { session: Session; item: PlannedExer
 
   const log = () => {
     if (!reps || reps <= 0) return;
-    const set: SetLog = { load: load ?? 0, reps, at: Date.now(), ...(side ? { side } : {}) };
+    const set: SetLog = { load: load ?? 0, reps, at: Date.now(), ...(side ? { side } : {}), ...(amrapNow ? { amrap: true } : {}) };
     logSet(session.id, ex.id, set);
     setSideOverride(null);
     if (firstOfPair) return;
@@ -467,9 +485,15 @@ function ExerciseLogger({ session, item }: { session: Session; item: PlannedExer
             >
               {sideTag(st.side) && <i>{sideTag(st.side)}</i>}
               {fmtNum(st.load)}×{st.reps}
+              {st.amrap && <i> máx</i>}
             </button>
           ))}
         </div>
+      )}
+      {amrapNow && (
+        <Notice tone="warn" title={`Série final no ${SIDE_LABEL[item.weakSide!]}: máximo de reps`}>
+          Mesma carga, sem parar, até a falha técnica (a última rep com boa forma). Registre quantas saíram.
+        </Notice>
       )}
       {side && (
         <div class="side-toggle" role="radiogroup" aria-label="Lado">

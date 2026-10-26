@@ -4,8 +4,8 @@ import { deleteAssessment } from '../data/actions';
 import { app } from '../data/store';
 import { analyzeAsymmetry, BILATERAL_PAIRS } from '../domain/asymmetry';
 import { exerciseById } from '../domain/exercises';
-import { lastSideStrength, performanceHistory, sessionTotals } from '../domain/history';
-import { CONDITION_LABEL, PERIMETER_LABEL } from '../domain/labels';
+import { amrapHistory, lastSideStrength, performanceHistory, sessionTotals, weeklySetsByMuscle } from '../domain/history';
+import { CONDITION_LABEL, MUSCLE_LABEL, PERIMETER_LABEL } from '../domain/labels';
 import { bestE1rm } from '../domain/progression';
 import { latestWeight } from '../domain/routine';
 import type { PerimeterSite } from '../domain/types';
@@ -100,6 +100,23 @@ export function Progress() {
       options: { scales: { y: { title: { display: true, text: 'E − D (%)' } } } },
     };
   }, [assessments]);
+
+  const muscleVolume = useMemo((): ChartConfiguration<'bar'> | null => {
+    const sets = weeklySetsByMuscle(sessions, weekStart(localISODate()));
+    if (!sets.size) return null;
+    const rows = [...sets.entries()].sort((a, b) => b[1] - a[1]);
+    const color = (n: number) => (n < 10 ? COLORS.info : n <= 20 ? COLORS.success : COLORS.primary);
+    return {
+      type: 'bar',
+      data: {
+        labels: rows.map(([m]) => MUSCLE_LABEL[m]),
+        datasets: [{ label: 'Séries nesta semana', data: rows.map(([, n]) => n), backgroundColor: rows.map(([, n]) => color(n)), borderRadius: 4 }],
+      },
+      options: { indexAxis: 'y', plugins: { legend: { display: false } } },
+    };
+  }, [sessions]);
+
+  const amraps = useMemo(() => [...amrapHistory(sessions).entries()], [sessions]);
 
   /** Último 1RM estimado por lado nos unilaterais. */
   const sideBars = useMemo((): ChartConfiguration<'bar'> | null => {
@@ -204,6 +221,37 @@ export function Progress() {
       <Card title="Assimetria ao longo do tempo">
         {asymTrend ? <ChartCanvas config={asymTrend} height={200} /> : <Empty text="Meça os dois lados em mais de uma avaliação." />}
         <p class="muted small">Abaixo de zero = lado esquerdo menor. A meta é a linha subir até perto de 0.</p>
+      </Card>
+
+      <Card title="Volume por músculo · esta semana">
+        {muscleVolume ? (
+          <ChartCanvas config={muscleVolume} height={Math.max(140, 40 + 28 * (muscleVolume.data.labels?.length ?? 1))} />
+        ) : (
+          <Empty text="Finalize treinos nesta semana para ver o volume por músculo." />
+        )}
+        <p class="muted small">Referência para hipertrofia: ~10–20 séries por músculo na semana. Azul abaixo, verde na faixa, laranja acima.</p>
+      </Card>
+
+      <Card title="Série máxima do lado fraco">
+        {amraps.length === 0 && <Empty text="Quando o plano pedir a série extra no máximo de reps, o resultado aparece aqui." />}
+        <ul class="history">
+          {amraps.map(([id, list]) => {
+            const last = list.at(-1)!;
+            const first = list[0];
+            return (
+              <li key={id}>
+                <div>
+                  <strong>{exerciseById(id)?.name ?? id}</strong>{' '}
+                  <span class="muted small">{last.side === 'L' ? 'esquerdo' : last.side === 'R' ? 'direito' : ''}</span>
+                </div>
+                <div class="small">
+                  {list.length > 1 ? `${first.reps} → ${last.reps} reps` : `${last.reps} reps`} com {fmtNum(last.load)} kg · {list.length} registro(s)
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <p class="muted small">Se as reps da série máxima sobem com a mesma carga, o lado fraco está alcançando o forte.</p>
       </Card>
 
       <Card title="Força por lado (unilaterais)">

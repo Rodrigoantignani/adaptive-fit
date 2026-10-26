@@ -1,7 +1,7 @@
 import { round } from '../lib/format';
-import type { BodyAssessment, CheckIn, Exercise, MeasureCondition, PerimeterSite, Profile, Session, SplitId, WeekDay } from '../domain/types';
+import type { BodyAssessment, CheckIn, Exercise, FunctionalTest, MeasureCondition, PerimeterSite, Profile, Session, SplitId, WeekDay } from '../domain/types';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export interface Settings {
   obsidianVault: string;
@@ -28,6 +28,7 @@ export interface AppState {
   checkIns: CheckIn[];
   sessions: Session[];
   assessments: BodyAssessment[];
+  functionalTests: FunctionalTest[];
 }
 
 export const emptyState = (): AppState => ({
@@ -47,6 +48,7 @@ export const emptyState = (): AppState => ({
   checkIns: [],
   sessions: [],
   assessments: [],
+  functionalTests: [],
 });
 
 /** v1 tinha upper_full / push / pull / legs. */
@@ -126,7 +128,7 @@ export function migrate(raw: unknown): AppState {
   if (raw == null) return emptyState();
   if (Array.isArray(raw)) return { ...emptyState(), assessments: fromLegacy(raw) };
   const r = raw as Omit<Partial<AppState>, 'schemaVersion'> & { schemaVersion?: number };
-  if (typeof r !== 'object' || (r.schemaVersion !== 1 && r.schemaVersion !== SCHEMA_VERSION)) {
+  if (typeof r !== 'object' || ![1, 2, SCHEMA_VERSION].includes(r.schemaVersion ?? -1)) {
     throw new Error('Formato de dados desconhecido.');
   }
   const base = emptyState();
@@ -145,6 +147,7 @@ export function migrate(raw: unknown): AppState {
     checkIns: fromV1 ? (r.checkIns ?? []).map((c) => ({ ...c, split: toSplit(c.split) })) : (r.checkIns ?? []),
     sessions: fromV1 ? (r.sessions ?? []).map((s) => ({ ...s, split: toSplit(s.split) })) : (r.sessions ?? []),
     assessments: r.assessments ?? [],
+    functionalTests: r.functionalTests ?? [],
   };
 }
 

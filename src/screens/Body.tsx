@@ -4,7 +4,9 @@ import { app } from '../data/store';
 import { analyzeAsymmetry, asymmetryAdvice } from '../domain/asymmetry';
 import { computeBodyComp, JP3_SITES, JP7_SITES, pickProtocol } from '../domain/bodycomp';
 import { CONDITION_LABEL, PERIMETER_LABEL, SKINFOLD_LABEL } from '../domain/labels';
+import { reassessDue } from '../domain/functional';
 import { MEASURE_RULES, PERIMETER_GUIDE, SKINFOLD_GUIDE } from '../domain/measureGuide';
+import { Functional } from './Functional';
 import type { BodyAssessment, MeasureCondition, PerimeterSite, SkinfoldSite } from '../domain/types';
 import { ageOn, formatBR, localISODate } from '../lib/date';
 import { fmtNum } from '../lib/format';
@@ -31,7 +33,27 @@ interface Draft {
 
 const hint = (v: number | undefined) => (v === undefined ? undefined : `ant. ${fmtNum(v)}`);
 
+type BodyView = 'measures' | 'functional';
+
 export function Body() {
+  const [view, setView] = useState<BodyView>('measures');
+  const due = reassessDue(app.value.functionalTests, localISODate()).due;
+  return (
+    <>
+      <Choice<BodyView>
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'measures', label: 'Medidas', hint: 'Dobras, perímetros, peso' },
+          { value: 'functional', label: 'Avaliação funcional', hint: 'Testes e fotos posturais', badge: due ? 'pendente' : undefined },
+        ]}
+      />
+      {view === 'measures' ? <Measures /> : <Functional />}
+    </>
+  );
+}
+
+function Measures() {
   const { profile, assessments } = app.value;
   const today = localISODate();
   const last = assessments.filter((a) => a.date !== today).at(-1);

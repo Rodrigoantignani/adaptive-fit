@@ -1,13 +1,40 @@
+import type { FunctionalFlags } from './functional';
 import { SIDE_LABEL } from './labels';
 import type { CorrectiveBlock, CorrectiveItem, Profile } from './types';
 
 /**
- * Aquecimento corretivo montado a partir das condições do perfil.
+ * Aquecimento corretivo montado a partir do perfil e da avaliação funcional.
  * Exercícios de baixo risco, usados em reabilitação; não substituem fisioterapia.
  */
-export function correctiveBlock(profile: Pick<Profile, 'scoliosis' | 'achilles'> | null | undefined, tendonPain = 0): CorrectiveBlock | null {
+export function correctiveBlock(
+  profile: Pick<Profile, 'scoliosis' | 'achilles'> | null | undefined,
+  tendonPain = 0,
+  functional?: FunctionalFlags,
+): CorrectiveBlock | null {
   const items: CorrectiveItem[] = [];
   let minutes = 0;
+
+  for (const s of functional?.overheadLimited ?? []) {
+    const side = SIDE_LABEL[s];
+    minutes += 1;
+    items.push({
+      id: `lat_stretch_${s}`,
+      title: `Alongamento do dorsal ${side}`,
+      dose: '2 × 30 s',
+      how: `Ajoelhado, mão ${side} apoiada num banco à frente. Leve o quadril para trás e o tronco para o lado oposto até sentir a lateral das costas.`,
+    });
+  }
+
+  if (functional?.latWeak) {
+    const side = SIDE_LABEL[functional.latWeak];
+    minutes += 2;
+    items.push({
+      id: 'lat_activation',
+      title: `Ativação do dorsal ${side}`,
+      dose: '2 × 12, carga leve, pausa de 2 s',
+      how: `Na polia alta, braço ${side} estendido: leve a mão até a coxa sem dobrar o cotovelo. Toque o dorsal com a outra mão para sentir a contração.`,
+    });
+  }
 
   const sc = profile?.scoliosis;
   if (sc) {

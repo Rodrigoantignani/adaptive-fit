@@ -22,6 +22,9 @@ PWA instalável, funciona offline e guarda **todos os dados no próprio aparelho
 | **Cronômetro de descanso** | Botão ⏱ sempre à mão, bipes em 3-2-1, som e vibração no fim, contador de séries. Ajustou o descanso de um exercício? O app aprende e usa da próxima vez. |
 | **Técnicas de treino** | 18 técnicas com ficha explicativa (rest-pause, drop-set, cluster, FST-7...). O plano sugere algumas sozinho, só em máquinas, conforme a prontidão e o tempo. |
 | **Assimetria de força** | Unilaterais registrados por lado viram comparação E × D e definem o lado fraco quando a fita métrica não definiu. |
+| **Avaliação funcional** | A cada 6 semanas: dorsiflexão (joelho na parede), braço acima da cabeça, panturrilha unilateral, teste de Adams, dorsal que não ativa e fotos posturais com grade. Os achados mudam o plano: puxada unilateral para o dorsal fraco, alongamento/ativação no aquecimento, avisos nos exercícios. |
+| **Lado fraco dita as reps** | Unilateral: fraco primeiro, forte repete as mesmas reps, e no fim uma série extra no fraco até o máximo de reps, registrada para acompanhar a evolução. |
+| **Sinais de alerta e regra das 24 h** | Formigamento/dor que irradia deixa a sessão leve e recomenda avaliação; dor do tendão que piorou após o último treino ativa a proteção do Aquiles. |
 | **Guia de medidas** | Como medir cada dobra e perímetro para avaliações comparáveis. |
 | **Máquinas da sua academia** | Cadastre máquinas novas com foto (comprimida no aparelho), dias, prioridade, unilateral, carga inicial e ajuste da máquina. Edite ou oculte as padrão. |
 | **Dupla progressão** | Bateu o topo da faixa em todas as séries → sobe carga. Duas sessões abaixo da faixa → desce um degrau. Em modo recuperação, nunca sobe. |

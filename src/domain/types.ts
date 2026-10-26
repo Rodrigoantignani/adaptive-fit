@@ -129,6 +129,38 @@ export interface CheckIn {
   split: SplitId;
   /** Dor no tendão de Aquiles hoje, 0–10 (só com a condição no perfil). */
   tendonPain?: number;
+  /** Regra das 24 h: a dor do tendão piorou desde a manhã seguinte ao último treino? */
+  tendonWorse?: boolean;
+  /** Sinal de alerta: formigamento ou dor que irradia. */
+  radiating?: boolean;
+}
+
+/** Avaliação funcional: testes de movimento repetidos a cada 4–6 semanas. */
+export interface FunctionalTest {
+  id: string;
+  date: string;
+  /** Joelho na parede: distância máxima do dedão à parede com o calcanhar no chão (cm). */
+  dorsiflexionL?: number;
+  dorsiflexionR?: number;
+  /** Braço acima da cabeça encostado na parede, costas e lombar apoiadas. */
+  overheadL?: 'ok' | 'limited';
+  overheadR?: 'ok' | 'limited';
+  /** Elevação de calcanhar unilateral no chão plano, reps até a fadiga (só com dor ≤ 3). */
+  calfRaiseL?: number;
+  calfRaiseR?: number;
+  /** Teste de Adams: lado da gibosidade (costela mais alta) ao inclinar o tronco. */
+  adamsHump?: Side | 'none';
+  /** Lado em que o dorsal "não aparece" / não ativa nas puxadas. */
+  latWeak?: Side | 'none';
+  photos?: { front?: string; back?: string; side?: string };
+  notes?: string;
+}
+
+export interface Finding {
+  id: string;
+  title: string;
+  detail: string;
+  tone: Tone;
 }
 
 export type Tier = 'push' | 'maintain' | 'recover';
@@ -163,6 +195,8 @@ export interface SetLog {
   reps: number;
   at: number;
   side?: Side;
+  /** Série extra do lado fraco: máximo de reps até a falha técnica. */
+  amrap?: boolean;
 }
 
 export interface Target {

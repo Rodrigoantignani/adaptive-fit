@@ -54,6 +54,7 @@ export const DEFAULT_EXERCISES: Exercise[] = [
   ex({ id: 'hammer_rope', name: 'Rosca martelo na corda', muscle: 'forearm', priority: 3, equipment: 'cable', repMin: 10, restSec: 60, antagonist: 'triceps_rope' }),
   ex({ id: 'triceps_rope', name: 'Tríceps na corda', muscle: 'triceps', priority: 3, equipment: 'cable', repMin: 10, restSec: 60, antagonist: 'hammer_rope' }),
   ex({ id: 'seated_calf', name: 'Panturrilha sentado', muscle: 'calves', splits: ['lower'], priority: 3, increment: 5, repMin: 12, repMax: 15, restSec: 60, ankleLoad: 'moderate' }),
+  ex({ id: 'pallof_press', name: 'Pallof press (anti-rotação)', muscle: 'core', splits: ['full_body', 'upper'], priority: 3, unilateral: true, equipment: 'cable', increment: 2.5, repMin: 10, repMax: 12, restSec: 45, cue: 'De lado para a polia, braços estendidos à frente do peito; o tronco não gira. Expire ao estender.' }),
   ex({ id: 'ab_wheel', name: 'Roda abdominal', muscle: 'core', splits: ['full_body', 'upper'], priority: 3, equipment: 'bodyweight', increment: 0, repMin: 8, repMax: 15, restSec: 60, coreDemand: 'high', cue: 'Pare antes de a lombar arquear.' }),
 
   // Substitutos seguros
@@ -66,6 +67,7 @@ export const DEFAULT_EXERCISES: Exercise[] = [
   ex({ id: 'leg_extension_uni', name: 'Cadeira extensora unilateral', muscle: 'quads', priority: 3, unilateral: true, repMin: 10, repMax: 15, restSec: 45 }),
   ex({ id: 'calf_raise_uni', name: 'Panturrilha unilateral em pé (degrau)', muscle: 'calves', priority: 3, unilateral: true, equipment: 'bodyweight', increment: 2, repMin: 12, repMax: 20, restSec: 45, ankleLoad: 'high' }),
   ex({ id: 'calf_press_flat', name: 'Panturrilha no leg press (amplitude curta)', muscle: 'calves', priority: 3, increment: 10, repMin: 12, repMax: 20, restSec: 45, cue: 'Só da posição neutra para cima: o calcanhar não passa da linha da plataforma.' }),
+  ex({ id: 'single_arm_pulldown', name: 'Puxada unilateral na polia (ajoelhado)', muscle: 'back', priority: 2, unilateral: true, equipment: 'cable', increment: 2.5, repMin: 10, repMax: 12, restSec: 45, cue: 'Puxe o cotovelo em direção ao bolso da calça, pausa de 2 s embaixo. Sinta o dorsal, não o bíceps.' }),
   ex({ id: 'db_row_uni', name: 'Remada unilateral apoiada (halter)', muscle: 'back', unilateral: true, equipment: 'free', increment: 2, cue: 'Mão e joelho no banco, tronco paralelo ao chão.' }),
   ex({ id: 'concentration_curl', name: 'Rosca concentrada unilateral', muscle: 'biceps', priority: 3, unilateral: true, equipment: 'free', increment: 1, repMin: 10, repMax: 15, restSec: 45 }),
   ex({ id: 'cable_reverse_curl_uni', name: 'Rosca inversa unilateral na polia', muscle: 'forearm', priority: 3, unilateral: true, equipment: 'cable', increment: 2.5, repMin: 12, repMax: 15, restSec: 45, cue: 'Pegada pronada, punho firme, sem balançar o tronco.' }),

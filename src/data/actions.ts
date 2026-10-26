@@ -1,5 +1,5 @@
 import { uid } from '../lib/id';
-import type { BodyAssessment, CheckIn, Exercise, Plan, Profile, Readiness, SetLog, WeekDay } from '../domain/types';
+import type { BodyAssessment, CheckIn, Exercise, FunctionalTest, Plan, Profile, Readiness, SetLog, WeekDay } from '../domain/types';
 import type { Settings } from './schema';
 import { mutate } from './store';
 
@@ -106,6 +106,16 @@ export const saveAssessment = (a: BodyAssessment) =>
     ...s,
     assessments: [...s.assessments.filter((x) => x.date !== a.date), a].sort((x, y) => x.date.localeCompare(y.date)),
   }));
+
+/** Uma avaliação funcional por dia: salvar de novo substitui. */
+export const saveFunctionalTest = (t: FunctionalTest) =>
+  mutate((s) => ({
+    ...s,
+    functionalTests: [...s.functionalTests.filter((x) => x.date !== t.date), t].sort((a, b) => a.date.localeCompare(b.date)),
+  }));
+
+export const deleteFunctionalTest = (id: string) =>
+  mutate((s) => ({ ...s, functionalTests: s.functionalTests.filter((x) => x.id !== id) }));
 
 export const deleteAssessment = (id: string) =>
   mutate((s) => ({ ...s, assessments: s.assessments.filter((x) => x.id !== id) }));

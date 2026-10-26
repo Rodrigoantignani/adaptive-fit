@@ -1604,6 +1604,63 @@ button.tag {
   background: var(--info-dim);
 }
 
+/* ---------- v0.6: avaliação funcional ---------- */
+.photo-grid-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.posture-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.posture-photo .photo-empty {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+}
+
+.grid-overlay {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.grid-overlay img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Linhas horizontais e vertical central: nível de ombros, quadril e alinhamento */
+.grid-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, transparent calc(50% - 0.5px), rgba(255, 152, 0, 0.8) calc(50% - 0.5px), rgba(255, 152, 0, 0.8) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    repeating-linear-gradient(to bottom, transparent 0, transparent calc(10% - 1px), rgba(255, 255, 255, 0.35) calc(10% - 1px), rgba(255, 255, 255, 0.35) 10%);
+  pointer-events: none;
+}
+
+.grid-overlay.ghost img {
+  opacity: 0.35;
+}
+
+.small-btn {
+  padding: 8px 0;
+  font-size: 0.72rem;
+}
+
 @media (max-width: 360px) {
   .grid-3 {
     grid-template-columns: 1fr 1fr;

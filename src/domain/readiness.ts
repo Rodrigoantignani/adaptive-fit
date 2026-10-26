@@ -15,7 +15,8 @@ export function assessReadiness(c: CheckIn, profile: Pick<Profile, 'spineCare' |
   const loadAdj = DAY_LOAD_ADJ[c.dayLoad];
   const soreAdj = c.soreness.reduce((acc, s) => acc + (s === 'lower_back' ? -15 : -5), 0);
   const tendon = profile?.achilles ? (c.tendonPain ?? 0) : 0;
-  const tendonAdj = tendon >= 5 ? -10 : 0;
+  const tendonWorse = Boolean(profile?.achilles && c.tendonWorse);
+  const tendonAdj = tendon >= 5 || tendonWorse ? -10 : 0;
 
   const score = Math.round(clamp(0.55 * sleepScore + 0.45 * energyScore + loadAdj + soreAdj + tendonAdj, 0, 100));
   const toneOf = (v: number): Tone => (v >= 70 ? 'good' : v >= 45 ? 'info' : 'warn');
@@ -32,11 +33,20 @@ export function assessReadiness(c: CheckIn, profile: Pick<Profile, 'spineCare' |
   let tier: Tier = score >= 70 ? 'push' : score >= 45 ? 'maintain' : 'recover';
   const cns = c.sleepHours < 6.5 || c.dayLoad === 'double';
   if (cns && tier === 'push') tier = 'maintain';
+  if (c.radiating) tier = 'recover';
 
-  const noAxial = Boolean(profile?.spineCare) || c.spineAlert || c.soreness.includes('lower_back');
-  const noHighCore = c.soreness.includes('core') || c.soreness.includes('lower_back');
+  const noAxial = Boolean(profile?.spineCare) || c.spineAlert || c.soreness.includes('lower_back') || Boolean(c.radiating);
+  const noHighCore = c.soreness.includes('core') || c.soreness.includes('lower_back') || Boolean(c.radiating);
 
   const rules: Rule[] = [];
+  if (c.radiating) {
+    rules.push({
+      id: 'red_flag',
+      tone: 'warn',
+      title: 'Sinal de alerta: formigamento ou dor que irradia',
+      detail: 'Hoje é sessão leve, sem carga na coluna nem core intenso. Se durar mais de alguns dias, vier com perda de força ou piorar à noite, procure um médico antes de voltar a treinar pesado.',
+    });
+  }
   if (tier === 'push') {
     rules.push({ id: 'progress', tone: 'good', title: 'Janela de progressão', detail: 'Prontidão alta: suba carga onde a progressão indicar e busque +1 rep nas demais.' });
   }
@@ -54,13 +64,14 @@ export function assessReadiness(c: CheckIn, profile: Pick<Profile, 'spineCare' |
     rules.push({ id: 'core', tone: 'info', title: 'Core em recuperação', detail: 'Sem exercícios que exijam estabilização intensa do abdômen.' });
   }
 
-  const ankleLevel: ReadinessFlags['ankleLevel'] = !profile?.achilles ? 0 : tendon >= 5 ? 2 : 1;
+  const ankleLevel: ReadinessFlags['ankleLevel'] = !profile?.achilles ? 0 : tendon >= 5 || tendonWorse ? 2 : 1;
   if (ankleLevel === 2) {
+    const why = tendonWorse ? 'A dor piorou depois do último treino (regra das 24 h)' : `Dor ${tendon}/10`;
     rules.push({
       id: 'achilles',
       tone: 'warn',
       title: 'Proteção do tendão de Aquiles',
-      detail: `Dor ${tendon}/10: hoje saem panturrilha e exercícios com dorsiflexão sob carga. Isometria leve no aquecimento ajuda na dor. Se não melhorar em alguns dias, procure avaliação.`,
+      detail: `${why}: a última carga passou do que o tendão tolera. Hoje saem panturrilha e exercícios com dorsiflexão sob carga; isometria leve no aquecimento ajuda na dor. Se não melhorar em alguns dias, procure avaliação.`,
     });
   } else if (ankleLevel === 1) {
     rules.push({

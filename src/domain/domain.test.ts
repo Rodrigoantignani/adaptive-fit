@@ -5,9 +5,10 @@ import { fromLegacy, mergeAssessments, migrate, parseBackup } from '../data/sche
 import { analyzeAsymmetry } from './asymmetry';
 import { bodyDensity, computeBodyComp, siri } from './bodycomp';
 import { activeLibrary, EXERCISES, newExercise } from './exercises';
-import { nextInRotation, suggestSplit } from './history';
+import { analyzeFunctional, functionalFlags, reassessDue } from './functional';
+import { lastSideStrength, nextInRotation, suggestSplit, weeklySetsByMuscle } from './history';
 import { buildDailyNote, obsidianNewUri } from './obsidian';
-import { buildPlan, estimateSeconds, nextSide, setCount } from './planner';
+import { buildPlan, estimateSeconds, isAmrapNext, nextSide, setCount } from './planner';
 import { nextTarget } from './progression';
 import { assessReadiness } from './readiness';
 import { dayDefaults } from './routine';
@@ -334,6 +335,85 @@ describe('ajustes do dia', () => {
   });
 });
 
+describe('avaliação funcional', () => {
+  const test = { id: 't', date: '2026-10-26', dorsiflexionL: 7, dorsiflexionR: 11, calfRaiseL: 14, calfRaiseR: 22, overheadL: 'limited' as const, latWeak: 'L' as const, adamsHump: 'R' as const };
+
+  it('traduz testes em achados com conduta', () => {
+    const f = functionalFlags(test);
+    expect(f).toMatchObject({ latWeak: 'L', dorsiflexionDeficit: 'L', calfDeficit: 'L', overheadLimited: ['L'] });
+    const ids = analyzeFunctional(test, { achilles: { side: 'L' }, scoliosis: { shortSide: 'L' } }).map((x) => x.id);
+    expect(ids).toEqual(expect.arrayContaining(['dorsiflexion', 'calf', 'overhead_L', 'lat', 'adams']));
+  });
+
+  it('dorsal fraco entra no plano: puxada unilateral, lado fraco primeiro, série máxima', () => {
+    const p = plan(checkIn(), false, { functional: functionalFlags(test) });
+    const uni = p.items.find((i) => i.exerciseId === 'single_arm_pulldown');
+    expect(uni).toMatchObject({ weakSide: 'L', extraSet: true, perSide: true });
+    expect(uni!.notes!.join(' ')).toContain('mesmas reps');
+  });
+
+  it('ombro limitado põe alongamento do dorsal e ativação no aquecimento', () => {
+    const p = plan(checkIn(), false, { functional: functionalFlags(test) });
+    expect(p.corrective?.items.map((i) => i.id)).toEqual(expect.arrayContaining(['lat_stretch_L', 'lat_activation']));
+  });
+
+  it('pede reavaliação quando vence', () => {
+    expect(reassessDue([], '2026-10-26')).toEqual({ due: true, days: null });
+    expect(reassessDue([test], '2026-11-01').due).toBe(false);
+    expect(reassessDue([test], '2026-12-10').due).toBe(true);
+    expect(plan(checkIn(), false, { reassess: { due: true, days: null } }).rules.some((r) => r.id === 'reassess')).toBe(true);
+  });
+});
+
+describe('postura e segurança', () => {
+  it('super-série sai com a puxada primeiro', () => {
+    const p = plan(checkIn({ timeAvailMin: 40 }));
+    const row = p.items.findIndex((i) => i.exerciseId === 'seated_row_machine');
+    const chest = p.items.findIndex((i) => i.exerciseId === 'incline_chest_machine');
+    if (row >= 0 && chest >= 0 && p.items[row].supersetWith) expect(row).toBeLessThan(chest);
+  });
+
+  it('regra das 24 h: piorou → proteção do tendão mesmo com dor baixa', () => {
+    const r = assessReadiness(checkIn({ tendonPain: 1, tendonWorse: true }), { spineCare: false, achilles: { side: 'L' } });
+    expect(r.flags.ankleLevel).toBe(2);
+    expect(r.rules.find((x) => x.id === 'achilles')?.detail).toContain('24 h');
+  });
+
+  it('formigamento ou dor que irradia: sessão leve, sem coluna, com alerta', () => {
+    const r = assessReadiness(checkIn({ radiating: true }), null);
+    expect(r.tier).toBe('recover');
+    expect(r.flags.noAxial).toBe(true);
+    expect(r.rules[0].id).toBe('red_flag');
+  });
+
+  it('série máxima: só depois das séries normais dos dois lados', () => {
+    const item: PlannedExercise = { exerciseId: 'x', sets: 2, restSec: 45, target: { load: 5, reps: 12, action: 'hold', reason: '' }, perSide: true, weakSide: 'L', extraSet: true };
+    const s = (...sides: ('L' | 'R')[]): SetLog[] => sides.map((side, i) => ({ load: 5, reps: 10, at: i, side }));
+    expect(isAmrapNext(s('L', 'R', 'L'), item)).toBe(false);
+    expect(isAmrapNext(s('L', 'R', 'L', 'R'), item)).toBe(true);
+  });
+
+  it('série máxima fica fora da comparação de força entre lados', () => {
+    const sess = {
+      id: 's', split: 'upper', date: '2026-10-26', startedAt: 1, endedAt: 2,
+      entries: [{ exerciseId: 'x', sets: [{ load: 20, reps: 10, at: 1, side: 'L' }, { load: 20, reps: 10, at: 2, side: 'R' }, { load: 20, reps: 20, at: 3, side: 'L', amrap: true }] }],
+    } as unknown as Session;
+    const s = lastSideStrength([sess], 'x')!;
+    expect(s.L).toBeCloseTo(s.R);
+  });
+
+  it('volume semanal: unilateral E + D conta 1 série', () => {
+    const sess = {
+      id: 's', split: 'upper', date: '2026-10-27', startedAt: 1, endedAt: 2,
+      entries: [
+        { exerciseId: 'seated_row_machine', sets: [1, 2, 3].map((at) => ({ load: 40, reps: 10, at })) },
+        { exerciseId: 'single_arm_pulldown', sets: ['L', 'R', 'L', 'R'].map((side, at) => ({ load: 20, reps: 10, at, side })) },
+      ],
+    } as unknown as Session;
+    expect(weeklySetsByMuscle([sess], '2026-10-26').get('back')).toBe(5);
+  });
+});
+
 describe('alternância', () => {
   const sess = (split: string, t: number) => ({ split, date: '2026-10-25', startedAt: t, endedAt: t + 1, entries: [] }) as unknown as Session;
 
@@ -386,10 +466,11 @@ describe('dados', () => {
     expect(() => migrate({ schemaVersion: 99 })).toThrow();
   });
 
-  it('migra v1 → v2 convertendo os splits antigos', () => {
+  it('migra v1 → atual convertendo os splits antigos', () => {
     const v1 = { schemaVersion: 1, profile: null, settings: { obsidianVault: '', obsidianFolder: 'Treino', refLoads: { a: 1 } }, checkIns: [{ split: 'legs' }], sessions: [{ split: 'upper_full' }, { split: 'pull' }], assessments: [] };
     const s = migrate(v1);
-    expect(s.schemaVersion).toBe(2);
+    expect(s.schemaVersion).toBe(3);
+    expect(s.functionalTests).toEqual([]);
     expect(s.checkIns[0].split).toBe('lower');
     expect(s.sessions.map((x) => x.split)).toEqual(['upper', 'upper']);
     expect(s.settings).toMatchObject({ refLoads: { a: 1 }, hiddenExercises: [], week: {} });
