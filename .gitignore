@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dev-dist/
+coverage/
+*.local
+.env
+.env.*
+.claude/
+.DS_Store
+Thumbs.db
+
+# Dados pessoais e backups nunca vão para o repositório
+dados-pessoais*.json
+adaptive-fit-backup*.json
+backups/
