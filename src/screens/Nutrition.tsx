@@ -4,7 +4,7 @@ import { calibrateFromPlan, nextDays, nutritionFor, type DayNutrition } from '..
 import { app } from '../data/store';
 import { ALL_CARB_SLOTS, analyzeDiet, CARB_SLOT_LABEL, dailyTopUps, type CarbSlot } from '../domain/dietCoach';
 import type { NutritionGoal } from '../domain/energy';
-import { equivalentGrams, foodById, FOODS, GI_LABEL, itemMacros, mealMacros, planMacros, sumMacros, type Meal } from '../domain/foods';
+import { equivalentGrams, foodById, FOODS, GI_LABEL, itemMacros, mealMacros, planMacros, sumMacros, type Meal, type MealItem } from '../domain/foods';
 import { WEEKDAY_LABEL } from '../domain/labels';
 import { latestWeight } from '../domain/routine';
 import { localISODate, parseISO } from '../lib/date';
@@ -321,50 +321,104 @@ function CalibrationCard({ today }: { today: string }) {
   );
 }
 
-function CarbAndShiftCard() {
-  const s = app.value;
-  const extras = s.settings.shiftExtras;
-  const setExtras = (next: typeof extras) => saveSettings({ shiftExtras: next });
-  const em = sumMacros(extras.map(itemMacros));
+/** Lista de alimentos com gramas; trocar o alimento mantém o macro principal. */
+function ItemsEditor({ items, onChange, add = 'banana' }: { items: MealItem[]; onChange: (next: MealItem[]) => void; add?: string }) {
+  const em = sumMacros(items.map(itemMacros));
   return (
-    <Card title="Preferências de carboidrato">
-      <Chips<CarbSlot>
-        label="Onde você aceita carboidrato extra"
-        accent
-        values={s.settings.carbSlots}
-        onChange={(v) => saveSettings({ carbSlots: v })}
-        options={ALL_CARB_SLOTS.map((k) => ({ value: k, label: CARB_SLOT_LABEL[k] }))}
-      />
-      <div class="field">
-        <span>A mais nos dias de turno em pé</span>
-      </div>
-      {extras.map((it, i) => (
-        <div key={i} class="meal-item">
-          <select value={it.foodId} onChange={(e) => setExtras(extras.map((y, j) => (j === i ? { ...y, foodId: e.currentTarget.value } : y)))}>
-            {FOODS.map((food) => (
-              <option key={food.id} value={food.id}>
-                {food.name}
-              </option>
-            ))}
-          </select>
-          <NumField label="" suffix="g" value={it.grams} onChange={(v) => setExtras(extras.map((y, j) => (j === i ? { ...y, grams: v ?? 0 } : y)))} />
-          <span class="muted small">{Math.round(itemMacros(it).kcal)} kcal</span>
-          <button class="link danger" aria-label="Remover" onClick={() => setExtras(extras.filter((_, j) => j !== i))}>
-            ×
-          </button>
-        </div>
-      ))}
+    <>
+      {items.map((it, i) => {
+        const f = foodById(it.foodId);
+        return (
+          <div key={i} class="meal-item">
+            <select
+              value={it.foodId}
+              onChange={(e) => {
+                const to = e.currentTarget.value;
+                onChange(items.map((y, j) => (j === i ? { foodId: to, grams: equivalentGrams(y.foodId, y.grams, to) } : y)));
+              }}
+            >
+              {FOODS.map((food) => (
+                <option key={food.id} value={food.id}>
+                  {food.name}
+                  {food.gi ? ` · ${GI_LABEL[food.gi]}` : ''}
+                </option>
+              ))}
+            </select>
+            <NumField
+              label=""
+              suffix={f?.unit ? `g (${fmtNum(Math.round((it.grams / f.unit.grams) * 10) / 10)} un)` : 'g'}
+              value={it.grams}
+              onChange={(v) => onChange(items.map((y, j) => (j === i ? { ...y, grams: v ?? 0 } : y)))}
+            />
+            <span class="muted small">{Math.round(itemMacros(it).kcal)} kcal</span>
+            <button class="link danger" aria-label="Remover" onClick={() => onChange(items.filter((_, j) => j !== i))}>
+              ×
+            </button>
+          </div>
+        );
+      })}
       <div class="meal-foot">
-        <button class="link" onClick={() => setExtras([...extras, { foodId: 'banana', grams: 100 }])}>
+        <button class="link" onClick={() => onChange([...items, { foodId: add, grams: foodById(add)?.unit?.grams ?? 100 }])}>
           + alimento
         </button>
-        {extras.length > 0 && (
+        {items.length > 0 && (
           <span class="muted small">
             +{Math.round(em.carbs)} g carbo · +{Math.round(em.kcal)} kcal
           </span>
         )}
       </div>
-    </Card>
+    </>
+  );
+}
+
+function CarbAndShiftCard() {
+  const s = app.value;
+  const [dow, setDow] = useState('0');
+  const dayItems = s.settings.dayExtras[dow] ?? [];
+  return (
+    <>
+      <Card title="Preferências de carboidrato">
+        <Chips<CarbSlot>
+          label="Onde você aceita carboidrato extra"
+          accent
+          values={s.settings.carbSlots}
+          onChange={(v) => saveSettings({ carbSlots: v })}
+          options={ALL_CARB_SLOTS.map((k) => ({ value: k, label: CARB_SLOT_LABEL[k] }))}
+        />
+        <div class="field">
+          <span>A mais nos dias de turno em pé</span>
+        </div>
+        <ItemsEditor items={s.settings.shiftExtras} onChange={(next) => saveSettings({ shiftExtras: next })} />
+      </Card>
+
+      <Card title="Extras por dia da semana">
+        <p class="muted small">Refeições fixas de um dia, como a pizza de domingo. Entram na conta do dia e na calibração pelo peso.</p>
+        <label class="field">
+          <span>Dia</span>
+          <select value={dow} onChange={(e) => setDow(e.currentTarget.value)}>
+            {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+              <option key={d} value={String(d)}>
+                {WEEKDAY_LABEL[d]}
+                {(s.settings.dayExtras[String(d)] ?? []).length ? ' •' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <ItemsEditor
+          items={dayItems}
+          add="pizza_margherita"
+          onChange={(next) => {
+            const dayExtras = { ...s.settings.dayExtras };
+            if (next.length) dayExtras[dow] = next;
+            else delete dayExtras[dow];
+            saveSettings({ dayExtras });
+          }}
+        />
+        <p class="muted small">
+          Pizza de fermentação longa congelada e reaquecida sobe menos a glicose. Nos dias de turno, 2–3 pedaços ~1 h antes de começar são um ótimo pré-turno.
+        </p>
+      </Card>
+    </>
   );
 }
 

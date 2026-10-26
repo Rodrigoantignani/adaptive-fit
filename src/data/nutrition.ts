@@ -25,12 +25,13 @@ export function nextDays(from: string, n = 7) {
 
 const workOf = (s: AppState, date: string) => s.settings.week[String(parseISO(date).getDay())]?.work;
 
-/** Plano base + extras do dia de turno em pé. */
+/** Plano base + extras do dia de turno em pé + extras fixos do dia da semana. */
 export function plannedIntake(s: AppState, date: string): Macros | null {
-  const { mealPlan, shiftExtras } = s.settings;
+  const { mealPlan, shiftExtras, dayExtras } = s.settings;
   if (!mealPlan.length) return null;
-  const base = planMacros(mealPlan);
-  return (workOf(s, date)?.standingH ?? 0) > 0 ? sumMacros([base, ...shiftExtras.map(itemMacros)]) : base;
+  const shift = (workOf(s, date)?.standingH ?? 0) > 0 ? shiftExtras : [];
+  const weekday = dayExtras[String(parseISO(date).getDay())] ?? [];
+  return sumMacros([planMacros(mealPlan), ...[...shift, ...weekday].map(itemMacros)]);
 }
 
 /**

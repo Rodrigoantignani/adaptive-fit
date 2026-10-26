@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ageOn, localISODate, weekStart } from '../lib/date';
 import { parseNum } from '../lib/format';
+import { plannedIntake } from '../data/nutrition';
 import { fromLegacy, mergeAssessments, mergeSeed, migrate, parseBackup } from '../data/schema';
 import { analyzeDiet, dailyTopUps } from './dietCoach';
 import { calibrationFactor, dailyEnergy, dayLoadFromWork, hoursBetween, macroTargets } from './energy';
@@ -530,6 +531,19 @@ describe('carboidrato sem sono', () => {
     const f = analyzeDiet(planMacros(meals), t, t, { weightKg: 79.5, meals, achilles: false, shiftDays: 0, avoidSpikes: true });
     expect(f.find((x) => x.id === 'lowcarb')?.title).toContain('não cetogênica');
     expect(f.find((x) => x.id === 'gi')?.detail).toContain('140 g de batata-doce cozida');
+  });
+});
+
+describe('ingestão planejada por dia', () => {
+  it('soma extras do turno e extras fixos do dia (pizza de domingo)', () => {
+    const s = migrate(null);
+    s.settings.mealPlan = [{ id: 'm', name: 'Almoço', time: '13:00', items: [{ foodId: 'chicken_breast', grams: 200 }] }];
+    s.settings.shiftExtras = [{ foodId: 'banana', grams: 100 }];
+    s.settings.dayExtras = { '0': [{ foodId: 'pizza_margherita', grams: 220 }] };
+    s.settings.week = { '5': { split: 'auto', timeAvailMin: 70, dayLoad: 'standing', work: { sittingH: 8, standingH: 3.5 } } };
+    const base = plannedIntake(s, '2026-10-28')!.kcal; // quarta
+    expect(plannedIntake(s, '2026-10-30')!.kcal).toBeCloseTo(base + 89, 0); // sexta: turno
+    expect(plannedIntake(s, '2026-11-01')!.kcal).toBeCloseTo(base + 517, 0); // domingo: pizza
   });
 });
 

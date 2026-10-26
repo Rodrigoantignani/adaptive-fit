@@ -27,6 +27,8 @@ export interface Settings {
   mealPlan: Meal[];
   /** O que se come a mais nos dias de turno em pé. */
   shiftExtras: MealItem[];
+  /** Extras fixos por dia da semana ("0" = domingo), ex.: pizza de domingo. */
+  dayExtras: Record<string, MealItem[]>;
   /**
    * Calibração pelo peso real: "peso estável comendo este plano" ⇒
    * gasto real = ingestão; fator aplicado sobre a fórmula.
@@ -70,6 +72,7 @@ export const emptyState = (): AppState => ({
     dietBase: '',
     mealPlan: [],
     shiftExtras: [],
+    dayExtras: {},
     calibration: null,
     trainsFasted: false,
     dailyWalkMin: 0,
@@ -211,6 +214,7 @@ export function mergeSeed(current: AppState, seed: AppState): AppState {
       week: Object.keys(cs.week).length ? cs.week : ss.week,
       mealPlan: cs.mealPlan.length ? cs.mealPlan : ss.mealPlan,
       shiftExtras: cs.shiftExtras.length ? cs.shiftExtras : ss.shiftExtras,
+      dayExtras: Object.keys(cs.dayExtras).length ? cs.dayExtras : ss.dayExtras,
       calibration: cs.calibration ?? ss.calibration,
       trainsFasted: pick('trainsFasted'),
       dailyWalkMin: pick('dailyWalkMin'),

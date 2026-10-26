@@ -47,6 +47,9 @@ export const FOODS: Food[] = [
   { id: 'lentils', name: 'Lentilha cozida', kcal: 116, protein: 9, carbs: 20, fat: 0.4, fiber: 7.9, carbTopUp: true, gi: 'low' },
   { id: 'chickpeas', name: 'Grão-de-bico cozido', kcal: 164, protein: 8.9, carbs: 27, fat: 2.6, fiber: 7.6, carbTopUp: true, gi: 'low' },
   { id: 'quinoa', name: 'Quinoa cozida', kcal: 120, protein: 4.4, carbs: 21, fat: 1.9, fiber: 2.8, carbTopUp: true, gi: 'medium' },
+  // Pizza caseira napolitana, fermentação longa (32 cm ≈ 450 g; pedaço = 1/8)
+  { id: 'pizza_margherita', name: 'Pizza caseira margherita (ferm. longa)', kcal: 235, protein: 10, carbs: 30, fat: 8, fiber: 1.8, unit: { label: 'pedaço (1/8)', plural: 'pedaços (1/8)', grams: 55 }, carbTopUp: true, gi: 'medium' },
+  { id: 'pizza_whole', name: 'Pizza caseira integral (ferm. longa)', kcal: 230, protein: 11, carbs: 27, fat: 8, fiber: 4, unit: { label: 'pedaço (1/8)', plural: 'pedaços (1/8)', grams: 55 }, carbTopUp: true, gi: 'medium' },
   { id: 'salmon', name: 'Salmão grelhado', kcal: 208, protein: 20, carbs: 0, fat: 13, fiber: 0 },
   { id: 'olive_oil', name: 'Azeite', kcal: 884, protein: 0, carbs: 0, fat: 100, fiber: 0 },
   { id: 'whey', name: 'Whey protein', kcal: 400, protein: 80, carbs: 8, fat: 6, fiber: 0, unit: { label: 'dose', plural: 'doses', grams: 30, generic: true } },
