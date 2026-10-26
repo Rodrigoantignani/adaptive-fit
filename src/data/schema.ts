@@ -2,7 +2,7 @@ import type { CarbSlot } from '../domain/dietCoach';
 import type { NutritionGoal } from '../domain/energy';
 import type { Meal, MealItem } from '../domain/foods';
 import { round } from '../lib/format';
-import type { BodyAssessment, CheckIn, Exercise, FunctionalTest, MeasureCondition, PerimeterSite, Profile, Session, SplitId, WeekDay } from '../domain/types';
+import type { BodyAssessment, CheckIn, Exercise, FunctionalTest, MeasureCondition, PerimeterSite, Profile, Session, ShiftDates, SplitId, WeekDay } from '../domain/types';
 
 export const SCHEMA_VERSION = 3;
 
@@ -23,6 +23,8 @@ export interface Settings {
   nutritionGoal: NutritionGoal;
   /** Anotações livres sobre a dieta. */
   dietBase: string;
+  /** Turnos avulsos por data (trabalho sob chamada); `null` cancela o turno padrão do dia. */
+  shiftDates: ShiftDates;
   /** Plano alimentar base: refeições com alimentos e gramas. */
   mealPlan: Meal[];
   /** O que se come a mais nos dias de turno em pé. */
@@ -73,6 +75,7 @@ export const emptyState = (): AppState => ({
     mealPlan: [],
     shiftExtras: [],
     dayExtras: {},
+    shiftDates: {},
     calibration: null,
     trainsFasted: false,
     dailyWalkMin: 0,
@@ -215,6 +218,7 @@ export function mergeSeed(current: AppState, seed: AppState): AppState {
       mealPlan: cs.mealPlan.length ? cs.mealPlan : ss.mealPlan,
       shiftExtras: cs.shiftExtras.length ? cs.shiftExtras : ss.shiftExtras,
       dayExtras: Object.keys(cs.dayExtras).length ? cs.dayExtras : ss.dayExtras,
+      shiftDates: { ...ss.shiftDates, ...cs.shiftDates },
       calibration: cs.calibration ?? ss.calibration,
       trainsFasted: pick('trainsFasted'),
       dailyWalkMin: pick('dailyWalkMin'),

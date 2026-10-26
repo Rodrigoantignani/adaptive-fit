@@ -1,14 +1,16 @@
 import { useState } from 'preact/hooks';
-import { saveProfile, saveSettings, setWeekDay } from '../data/actions';
+import { saveProfile, saveSettings, setShiftDate, setWeekDay } from '../data/actions';
 import { emptyState, mergeAssessments, mergeSeed, parseBackup } from '../data/schema';
 import { app, commit, hasSnapshot, mutate, restoreSnapshot, takeSnapshot } from '../data/store';
 import { DAY_LOAD_LABEL, SPLIT_LABEL, SPLIT_ORDER, WEEKDAY_LABEL } from '../domain/labels';
 import { dataviewSnippet } from '../domain/obsidian';
 import { dayLoadFromWork, hoursBetween } from '../domain/energy';
+import { workFor } from '../domain/routine';
 import type { Profile, Sex, Side, SplitId, WeekDay, WorkDay } from '../domain/types';
 import { TechniqueGlossary } from '../ui/TechniqueSheet';
-import { localISODate } from '../lib/date';
+import { formatBR, localISODate, parseISO } from '../lib/date';
 import { copyText, downloadText } from '../lib/device';
+import { fmtNum } from '../lib/format';
 import { Card, Choice, Notice, NumField, Toggle } from '../ui/kit';
 
 export function ProfileForm() {
@@ -97,6 +99,71 @@ export function ProfileForm() {
 }
 
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/**
+ * Trabalho sob chamada: marca os turnos das próximas 2 semanas.
+ * A data marcada vale mais que o padrão da rotina semanal.
+ */
+function ShiftCalendar() {
+  const { week, shiftDates } = app.value.settings;
+  const today = localISODate();
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const d = parseISO(today);
+    d.setDate(d.getDate() + i);
+    return localISODate(d);
+  });
+  // Horário sugerido ao marcar: o do padrão do dia ou o último turno avulso usado.
+  const lastShift = Object.entries(shiftDates)
+    .filter(([, v]) => v)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .at(-1)?.[1] ?? { start: '19:30', end: '22:30' };
+  return (
+    <Card title="Turnos em pé (próximos 14 dias)">
+      <p class="muted small">
+        Trabalho sob chamada: marque os dias de turno. Eles mudam a demanda do check-in, o gasto e a comida do dia e o sono esperado da manhã seguinte. Dias
+        com turno fixo vêm da rotina semanal.
+      </p>
+      <div class="shift-list">
+        {days.map((date) => {
+          const base = week[String(parseISO(date).getDay())]?.work;
+          const baseHas = (base?.standingH ?? 0) > 0;
+          const work = workFor(date, week, shiftDates);
+          const on = (work?.standingH ?? 0) > 0;
+          const fromRoutine = on && !(date in shiftDates);
+          const toggle = () => {
+            if (on) setShiftDate(date, baseHas ? null : undefined);
+            else if (baseHas && date in shiftDates) setShiftDate(date, undefined);
+            else setShiftDate(date, { start: base?.standingStart ?? lastShift.start, end: base?.standingEnd ?? lastShift.end });
+          };
+          const setTime = (k: 'start' | 'end', v: string) => {
+            if (!work?.standingStart || !work.standingEnd || !v) return;
+            setShiftDate(date, { start: work.standingStart, end: work.standingEnd, [k]: v });
+          };
+          return (
+            <div key={date} class={`shift-row ${on ? 'on' : ''}`}>
+              <label class="shift-day">
+                <input type="checkbox" checked={on} onChange={toggle} />
+                <span>
+                  {WEEKDAY_LABEL[parseISO(date).getDay()].slice(0, 3)} {formatBR(date).slice(0, 5)}
+                  {date === today && <i> hoje</i>}
+                </span>
+              </label>
+              {on ? (
+                <>
+                  <input type="time" aria-label="Início do turno" value={work!.standingStart ?? ''} onInput={(e) => setTime('start', e.currentTarget.value)} />
+                  <input type="time" aria-label="Fim do turno" value={work!.standingEnd ?? ''} onInput={(e) => setTime('end', e.currentTarget.value)} />
+                  <small class="muted">{fromRoutine ? 'rotina' : `${fmtNum(work!.standingH)} h`}</small>
+                </>
+              ) : (
+                <small class="muted span-3">{baseHas ? 'sem turno (cancelado)' : 'sem turno'}</small>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
 
 /** Rotina semanal: preenche o check-in de cada dia (split, tempo e demanda). */
 function WeekCard() {
@@ -242,6 +309,8 @@ export function Settings() {
           </button>
         </details>
       </Card>
+
+      <ShiftCalendar />
 
       <WeekCard />
 

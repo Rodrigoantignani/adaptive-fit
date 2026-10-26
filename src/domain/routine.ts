@@ -1,8 +1,8 @@
-import { parseISO } from '../lib/date';
+import { localISODate, parseISO } from '../lib/date';
 import { analyzeAsymmetry } from './asymmetry';
-import { dayLoadFromWork } from './energy';
+import { dayLoadFromWork, hoursBetween } from './energy';
 import { nextInRotation } from './history';
-import type { BodyAssessment, CheckIn, Session, SplitId, WeekDay } from './types';
+import type { BodyAssessment, CheckIn, Session, ShiftDates, SplitId, WeekDay, WorkDay } from './types';
 
 export interface DayDefaults {
   split: SplitId;
@@ -15,17 +15,30 @@ export interface DayDefaults {
   sleepGuess: number;
 }
 
+/**
+ * Agenda real de um dia: o padrão do dia da semana, com o turno da data por cima.
+ * Trabalho sob chamada: a data marcada vale mais que o padrão; `null` cancela o turno padrão.
+ */
+export function workFor(date: string, week: Record<string, WeekDay>, shiftDates: ShiftDates = {}): WorkDay | undefined {
+  const base = week[String(parseISO(date).getDay())]?.work;
+  if (!(date in shiftDates)) return base;
+  const shift = shiftDates[date];
+  const sittingH = base?.sittingH ?? 0;
+  if (!shift) return { sittingH, standingH: 0 };
+  return { sittingH, standingH: hoursBetween(shift.start, shift.end), standingStart: shift.start, standingEnd: shift.end };
+}
+
 /** Turno em pé ontem terminando 22h ou mais tarde ⇒ ~6 h de sono; senão o padrão. */
-export function sleepGuess(date: string, week: Record<string, WeekDay>, usual = 7.5): number {
+export function sleepGuess(date: string, week: Record<string, WeekDay>, usual = 7.5, shiftDates: ShiftDates = {}): number {
   const y = parseISO(date);
   y.setDate(y.getDate() - 1);
-  const end = week[String(y.getDay())]?.work?.standingEnd;
+  const end = workFor(localISODate(y), week, shiftDates)?.standingEnd;
   return end && end >= '22:00' ? 6 : usual;
 }
 
 /**
- * Valores iniciais do check-in: a rotina semanal manda no tempo e na demanda;
- * o treino vem da rotina do dia ou, sem ela, da rotação (ex.: Superior ↔ Inferior).
+ * Valores iniciais do check-in: a rotina semanal manda no tempo; a demanda vem da agenda real
+ * do dia (com turnos avulsos); o treino vem da rotina do dia ou, sem ela, da rotação.
  */
 export function dayDefaults(
   date: string,
@@ -33,27 +46,30 @@ export function dayDefaults(
   last: CheckIn | undefined,
   sessions: Session[],
   rotationOrder: SplitId[],
+  shiftDates: ShiftDates = {},
 ): DayDefaults {
   const day = week[String(parseISO(date).getDay())];
   const rotation = nextInRotation(sessions, rotationOrder);
+  const work = workFor(date, week, shiftDates);
+  const sleep = sleepGuess(date, week, 7.5, shiftDates);
   if (day) {
     const fixed = day.split !== 'rest' && day.split !== 'auto';
     return {
       split: fixed ? (day.split as SplitId) : rotation,
       timeAvailMin: day.timeAvailMin,
-      dayLoad: day.work ? dayLoadFromWork(day.work) : day.dayLoad,
+      dayLoad: work ? dayLoadFromWork(work) : day.dayLoad,
       source: fixed ? 'routine' : 'rotation',
       restDay: day.split === 'rest',
-      sleepGuess: sleepGuess(date, week),
+      sleepGuess: sleep,
     };
   }
   return {
     split: rotation,
     timeAvailMin: last?.timeAvailMin ?? 60,
-    dayLoad: last?.dayLoad ?? 'light',
+    dayLoad: work ? dayLoadFromWork(work) : (last?.dayLoad ?? 'light'),
     source: 'rotation',
     restDay: false,
-    sleepGuess: sleepGuess(date, week),
+    sleepGuess: sleep,
   };
 }
 

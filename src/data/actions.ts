@@ -1,5 +1,5 @@
 import { uid } from '../lib/id';
-import type { BodyAssessment, CheckIn, Exercise, FunctionalTest, Plan, Profile, Readiness, SetLog, WeekDay } from '../domain/types';
+import type { BodyAssessment, CheckIn, Exercise, FunctionalTest, Plan, Profile, Readiness, SetLog, WeekDay, WorkShift } from '../domain/types';
 import type { Settings } from './schema';
 import { mutate } from './store';
 
@@ -27,6 +27,19 @@ export const forgetRest = (exerciseId: string) =>
     delete learnedRest[exerciseId];
     return { ...s, settings: { ...s.settings, learnedRest } };
   });
+
+/**
+ * Marca/desmarca turno numa data. `undefined` volta ao padrão da semana;
+ * `null` cancela o turno padrão daquele dia.
+ */
+export function setShiftDate(date: string, shift: WorkShift | null | undefined) {
+  mutate((s) => {
+    const shiftDates = { ...s.settings.shiftDates };
+    if (shift === undefined) delete shiftDates[date];
+    else shiftDates[date] = shift;
+    return { ...s, settings: { ...s.settings, shiftDates } };
+  });
+}
 
 export function setWeekDay(dow: number, day: WeekDay | null) {
   mutate((s) => {

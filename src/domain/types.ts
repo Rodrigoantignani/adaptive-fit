@@ -255,6 +255,14 @@ export interface WorkDay {
   standingEnd?: string;
 }
 
+/** Turno avulso numa data (trabalho sob chamada). `null` na agenda = sem turno nesse dia. */
+export interface WorkShift {
+  start: string;
+  end: string;
+}
+
+export type ShiftDates = Record<string, WorkShift | null>;
+
 /** Padrão de cada dia da semana; o check-in já nasce preenchido com ele. */
 export interface WeekDay {
   /** 'auto' = segue a alternância a partir do último treino. */

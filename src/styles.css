@@ -1882,6 +1882,60 @@ button.tag {
   font-size: 0.74rem;
 }
 
+/* ---------- v0.7.2: turnos por data ---------- */
+.shift-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shift-row {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr 44px;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.shift-row.on {
+  background: var(--primary-dim);
+}
+
+.shift-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shift-day input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+
+.shift-day i {
+  font-style: normal;
+  color: var(--primary);
+  font-size: 0.72rem;
+}
+
+.shift-row input[type='time'] {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.span-3 {
+  grid-column: span 3;
+}
+
 @media (max-width: 360px) {
   .grid-3 {
     grid-template-columns: 1fr 1fr;

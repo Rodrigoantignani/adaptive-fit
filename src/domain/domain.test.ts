@@ -15,7 +15,7 @@ import { buildDailyNote, obsidianNewUri } from './obsidian';
 import { buildPlan, estimateSeconds, isAmrapNext, nextSide, setCount } from './planner';
 import { nextTarget } from './progression';
 import { assessReadiness } from './readiness';
-import { dayDefaults, sleepGuess } from './routine';
+import { dayDefaults, sleepGuess, workFor } from './routine';
 import type { CheckIn, PlannedExercise, Session, SetLog } from './types';
 
 const checkIn = (over: Partial<CheckIn> = {}): CheckIn => ({
@@ -544,6 +544,38 @@ describe('ingestão planejada por dia', () => {
     const base = plannedIntake(s, '2026-10-28')!.kcal; // quarta
     expect(plannedIntake(s, '2026-10-30')!.kcal).toBeCloseTo(base + 89, 0); // sexta: turno
     expect(plannedIntake(s, '2026-11-01')!.kcal).toBeCloseTo(base + 517, 0); // domingo: pizza
+  });
+});
+
+describe('turnos sob chamada', () => {
+  const week = {
+    '3': { split: 'auto' as const, timeAvailMin: 70, dayLoad: 'light' as const, work: { sittingH: 8, standingH: 0 } },
+    '6': { split: 'auto' as const, timeAvailMin: 90, dayLoad: 'standing' as const, work: { sittingH: 0, standingH: 4.5, standingStart: '18:30', standingEnd: '23:00' } },
+  };
+
+  it('data marcada vale mais que o padrão; null cancela o turno fixo', () => {
+    const dates = { '2026-10-28': { start: '19:30', end: '22:30' }, '2026-11-07': null };
+    expect(workFor('2026-10-28', week, dates)).toMatchObject({ sittingH: 8, standingH: 3, standingEnd: '22:30' }); // quarta avulsa
+    expect(workFor('2026-11-04', week, dates)?.standingH).toBe(0); // quarta sem turno
+    expect(workFor('2026-10-31', week, dates)?.standingH).toBe(4.5); // sábado padrão
+    expect(workFor('2026-11-07', week, dates)?.standingH).toBe(0); // sábado cancelado
+  });
+
+  it('turno avulso muda demanda do check-in e o sono da manhã seguinte', () => {
+    const dates = { '2026-10-28': { start: '19:30', end: '22:30' } };
+    expect(dayDefaults('2026-10-28', week, undefined, [], ['upper', 'lower'], dates).dayLoad).toBe('standing');
+    expect(dayDefaults('2026-10-29', week, undefined, [], ['upper', 'lower'], dates).sleepGuess).toBe(6);
+    expect(dayDefaults('2026-11-05', week, undefined, [], ['upper', 'lower'], dates).sleepGuess).toBe(7.5);
+  });
+
+  it('extras de turno entram só nos dias com turno de verdade', () => {
+    const s = migrate(null);
+    s.settings.mealPlan = [{ id: 'm', name: 'Almoço', time: '13:00', items: [{ foodId: 'chicken_breast', grams: 200 }] }];
+    s.settings.shiftExtras = [{ foodId: 'banana', grams: 100 }];
+    s.settings.week = week;
+    s.settings.shiftDates = { '2026-10-28': { start: '19:30', end: '22:30' } };
+    const plain = plannedIntake(s, '2026-11-04')!.kcal;
+    expect(plannedIntake(s, '2026-10-28')!.kcal).toBeCloseTo(plain + 89, 0);
   });
 });
 

@@ -8,7 +8,7 @@ import { lastSideStrength, performanceHistory, sessionRecords, sessionTotals } f
 import { ACTION_LABEL, DAY_LOAD_LABEL, SIDE_LABEL, SORENESS_LABEL, SPLIT_HINT, SPLIT_LABEL, SPLIT_ORDER, TIER_LABEL } from '../domain/labels';
 import { buildPlan, isAmrapNext, nextSide, setCount } from '../domain/planner';
 import { assessReadiness } from '../domain/readiness';
-import { dayDefaults, latestBilateral, latestWeight } from '../domain/routine';
+import { dayDefaults, latestBilateral, latestWeight, workFor } from '../domain/routine';
 import type { CheckIn, CorrectiveBlock, DayLoad, Exercise, PlannedExercise, Readiness, Session, SetLog, Side, SorenessArea, SplitId } from '../domain/types';
 import { formatBR, localISODate } from '../lib/date';
 import { useWakeLock } from '../lib/device';
@@ -64,7 +64,7 @@ export function Today() {
 function newCheckIn(date: string): CheckIn {
   const { checkIns, sessions, settings } = app.value;
   const last = checkIns.at(-1);
-  const d = dayDefaults(date, settings.week, last, sessions, settings.rotation);
+  const d = dayDefaults(date, settings.week, last, sessions, settings.rotation, settings.shiftDates);
   return {
     id: uid(),
     date,
@@ -84,10 +84,17 @@ function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void
   const set = <K extends keyof CheckIn>(k: K, v: CheckIn[K]) => setC((prev) => ({ ...prev, [k]: v }));
   const { profile, settings, checkIns, sessions } = app.value;
   const preview = assessReadiness(c, profile);
-  const defaults = dayDefaults(c.date, settings.week, checkIns.at(-1), sessions, settings.rotation);
+  const defaults = dayDefaults(c.date, settings.week, checkIns.at(-1), sessions, settings.rotation, settings.shiftDates);
+  const work = workFor(c.date, settings.week, settings.shiftDates);
+  const shiftToday = (work?.standingH ?? 0) > 0 ? work : undefined;
 
   return (
     <Card title="Check-in de prontidão" aside={formatBR(c.date)}>
+      {shiftToday && (
+        <Notice tone="info" title={`Turno em pé hoje: ${shiftToday.standingStart}–${shiftToday.standingEnd}`}>
+          A demanda do dia já considera o turno. Mudou a escala? Ajuste em Ajustes → Turnos.
+        </Notice>
+      )}
       {defaults.restDay && (
         <Notice tone="info" title="Dia de descanso na sua rotina">
           Se quiser treinar mesmo assim, o plano se ajusta à sua prontidão.

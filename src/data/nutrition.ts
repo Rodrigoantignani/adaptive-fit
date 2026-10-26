@@ -1,5 +1,6 @@
 import { calibrationFactor, dailyEnergy, macroTargets, type EnergyDay, type MacroTargets } from '../domain/energy';
 import { itemMacros, planMacros, sumMacros, type Macros } from '../domain/foods';
+import { workFor } from '../domain/routine';
 import type { WorkDay } from '../domain/types';
 import { ageOn, localISODate, parseISO } from '../lib/date';
 import type { AppState } from './schema';
@@ -23,7 +24,7 @@ export function nextDays(from: string, n = 7) {
   });
 }
 
-const workOf = (s: AppState, date: string) => s.settings.week[String(parseISO(date).getDay())]?.work;
+const workOf = (s: AppState, date: string) => workFor(date, s.settings.week, s.settings.shiftDates);
 
 /** Plano base + extras do dia de turno em pé + extras fixos do dia da semana. */
 export function plannedIntake(s: AppState, date: string): Macros | null {
@@ -66,13 +67,13 @@ export function nutritionFor(s: AppState, date: string, opts: { ignoreCalibratio
     weightKg: last.weightKg,
     leanKg,
     heightCm: p.heightCm,
-    work: day?.work,
+    work: workOf(s, date),
     trainingMin,
     walkMin: s.settings.dailyWalkMin,
     calibration: opts.ignoreCalibration ? 1 : (s.settings.calibration?.factor ?? 1),
   });
-  const macros = macroTargets(energy, s.settings.nutritionGoal, last.weightKg, leanKg, trainingMin > 0, day?.work?.standingH ?? 0);
-  return { energy, macros, work: day?.work, trainingMin: Math.round(trainingMin), trainingSource, intake: plannedIntake(s, date) };
+  const macros = macroTargets(energy, s.settings.nutritionGoal, last.weightKg, leanKg, trainingMin > 0, workOf(s, date)?.standingH ?? 0);
+  return { energy, macros, work: workOf(s, date), trainingMin: Math.round(trainingMin), trainingSource, intake: plannedIntake(s, date) };
 }
 
 /** "Peso estável comendo este plano": ingestão média da semana = gasto real. */
