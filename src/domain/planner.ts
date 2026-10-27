@@ -32,7 +32,7 @@ const SPLIT_MUSCLES: Record<SplitId, Muscle[] | 'all'> = {
   full_body: 'all',
   upper: ['chest', 'back', 'front_delt', 'side_delt', 'rear_delt', 'biceps', 'triceps', 'forearm', 'core'],
   lower: ['quads', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors', 'core'],
-  arms_core: ['biceps', 'triceps', 'forearm', 'core', 'calves'],
+  arms_core: ['biceps', 'triceps', 'forearm', 'core', 'lower_back', 'calves'],
 };
 
 const PAIR_MUSCLE: Record<string, Muscle> = { biceps: 'biceps', forearm: 'forearm', thigh: 'quads', calf: 'calves' };
@@ -50,6 +50,7 @@ const SORE_MUSCLES: Partial<Record<SorenessArea, Muscle[]>> = {
   shoulders: ['front_delt', 'side_delt', 'rear_delt'],
   arms: ['biceps', 'triceps', 'forearm'],
   legs: ['quads', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors'],
+  lower_back: ['lower_back'],
 };
 
 export function exclusionReason(e: Exercise, flags: ReadinessFlags): string | null {
@@ -231,14 +232,36 @@ export function buildPlan({
         heavy.push(`${group.label.toLowerCase()} (${fmtNum(doneThisWeek)} séries)`);
       }
       const prio = slotPriority(index);
+      const before = items.length;
       const byPref = (a: Exercise, b: Exercise) => Number(b.compound) - Number(a.compound) || a.priority - b.priority;
       const inSplit = exercises.filter((e) => inGroup(e) && e.splits.includes(checkIn.split)).sort(byPref);
       const offSplit = exercises.filter((e) => inGroup(e) && !e.splits.includes(checkIn.split)).sort(byPref);
       let n = 0;
-      for (const e of inSplit) {
-        if (n >= count) break;
+      // Dentro do grupo: composto primeiro; depois a porção ainda não treinada hoje e com menos volume
+      // na semana (contando o indireto do dia). Ex.: ombro = desenvolvimento + elevação lateral,
+      // porque o posterior já recebe as remadas.
+      const usedMuscles = new Set<Muscle>();
+      const volumeOf = (m: Muscle) =>
+        (weekSets?.get(m) ?? 0) +
+        items.reduce((a, it) => {
+          const x = byId.get(it.exerciseId);
+          return !x ? a : a + (x.muscle === m ? it.sets : 0) + ((x.secondary ?? []).includes(m) ? it.sets / 2 : 0);
+        }, 0);
+      const remaining = [...inSplit];
+      while (n < count && remaining.length) {
+        remaining.sort(
+          (a, b) =>
+            Number(b.compound) - Number(a.compound) ||
+            Number(usedMuscles.has(a.muscle)) - Number(usedMuscles.has(b.muscle)) ||
+            volumeOf(a.muscle) - volumeOf(b.muscle) ||
+            a.priority - b.priority,
+        );
+        const e = remaining.shift()!;
         if (isUsed(e.id) || (e.rotateWith && isUsed(e.rotateWith))) continue;
-        if (place(e, prio, (alt) => !alt.splits.includes(checkIn.split), false)) n++;
+        if (place(e, prio, (alt) => !alt.splits.includes(checkIn.split), false)) {
+          n++;
+          usedMuscles.add(byId.get(items[items.length - 1].exerciseId)!.muscle);
+        }
       }
       // Faltou exercício do grupo neste split: completa com os de fora (ex.: tríceps na corda no dia de superior).
       for (const e of offSplit) {
@@ -247,6 +270,8 @@ export function buildPlan({
         take(e, prio);
         n++;
       }
+      // Séries do grupo definidas na montagem (ex.: bíceps 2 × 2 no dia de braço)
+      if (slot.sets) for (const it of items.slice(before)) it.sets = Math.min(it.sets, slot.sets);
     });
     if (heavy.length) {
       rules.push({
@@ -319,6 +344,9 @@ export function buildPlan({
   }
   for (const it of items) {
     const ex = byId.get(it.exerciseId)!;
+    if (ex.id === 'dips' && functional?.overheadLimited.length) {
+      addNote(it, 'Ombro com mobilidade limitada na avaliação: desça só até onde não puxar a frente do ombro (amplitude curta).');
+    }
     if (ex.muscle === 'front_delt' && functional?.overheadLimited.length) {
       addNote(it, `Braço ${functional.overheadLimited.map((s) => SIDE_LABEL[s]).join(' e ')} não sobe completo: pare na amplitude confortável, sem arquear a lombar.`);
     }

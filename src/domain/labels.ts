@@ -33,6 +33,7 @@ export const MUSCLE_LABEL: Record<Muscle, string> = {
   glutes: 'Glúteos',
   adductors: 'Adutores',
   abductors: 'Abdutores',
+  lower_back: 'Lombar (eretores)',
   core: 'Core',
 };
 

@@ -2038,6 +2038,12 @@ button.tag {
   font-weight: 600;
 }
 
+.template-list .sets-select {
+  padding: 6px 4px;
+  font-size: 0.75rem;
+  max-width: 96px;
+}
+
 @media (max-width: 360px) {
   .grid-3 {
     grid-template-columns: 1fr 1fr;

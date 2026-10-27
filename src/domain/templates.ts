@@ -1,7 +1,7 @@
 import type { Muscle, SplitId } from './types';
 
 /** Grupos como o treinador conta exercícios ("2 de ombro" = qualquer porção do deltoide). */
-export type GroupId = 'back' | 'chest' | 'shoulders' | 'biceps' | 'triceps' | 'forearm' | 'core' | 'quads' | 'hamstrings' | 'glutes' | 'hips' | 'calves';
+export type GroupId = 'back' | 'chest' | 'shoulders' | 'biceps' | 'triceps' | 'forearm' | 'core' | 'lower_back' | 'quads' | 'hamstrings' | 'glutes' | 'hips' | 'calves';
 
 export const GROUPS: Record<GroupId, { label: string; muscles: Muscle[] }> = {
   back: { label: 'Costas', muscles: ['back'] },
@@ -11,6 +11,7 @@ export const GROUPS: Record<GroupId, { label: string; muscles: Muscle[] }> = {
   triceps: { label: 'Tríceps', muscles: ['triceps'] },
   forearm: { label: 'Antebraço', muscles: ['forearm'] },
   core: { label: 'Abdômen / core', muscles: ['core'] },
+  lower_back: { label: 'Lombar (eretores)', muscles: ['lower_back'] },
   quads: { label: 'Quadríceps', muscles: ['quads'] },
   hamstrings: { label: 'Posteriores', muscles: ['hamstrings'] },
   glutes: { label: 'Glúteos', muscles: ['glutes'] },
@@ -24,6 +25,8 @@ export const GROUP_ORDER = Object.keys(GROUPS) as GroupId[];
 export interface TemplateSlot {
   group: GroupId;
   count: number;
+  /** Séries por exercício deste grupo (teto); sem valor, usa o padrão do exercício. */
+  sets?: number;
 }
 
 export const DEFAULT_TEMPLATES: Record<SplitId, TemplateSlot[]> = {
@@ -31,7 +34,7 @@ export const DEFAULT_TEMPLATES: Record<SplitId, TemplateSlot[]> = {
     { group: 'back', count: 3 },
     { group: 'chest', count: 2 },
     { group: 'shoulders', count: 2 },
-    { group: 'triceps', count: 2 },
+    { group: 'triceps', count: 2, sets: 2 },
   ],
   lower: [
     { group: 'quads', count: 2 },
@@ -41,10 +44,11 @@ export const DEFAULT_TEMPLATES: Record<SplitId, TemplateSlot[]> = {
     { group: 'calves', count: 1 },
   ],
   arms_core: [
-    { group: 'biceps', count: 2 },
-    { group: 'triceps', count: 2 },
+    { group: 'biceps', count: 2, sets: 2 },
+    { group: 'triceps', count: 1, sets: 2 },
     { group: 'forearm', count: 2 },
     { group: 'core', count: 2 },
+    { group: 'lower_back', count: 1 },
     { group: 'calves', count: 1 },
   ],
   full_body: [

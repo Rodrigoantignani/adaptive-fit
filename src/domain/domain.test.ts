@@ -656,6 +656,53 @@ describe('montagem do treino (prioridade do usuário)', () => {
     }
   });
 
+  it('semana Sup → Inf → Braços ×2: bíceps no meio da faixa, ninguém muito acima de 20', () => {
+    const days: CheckIn['split'][] = ['upper', 'lower', 'arms_core', 'upper', 'lower', 'arms_core'];
+    const sessions: Session[] = [];
+    days.forEach((split, d) => {
+      const date = `2026-11-0${d + 2}`; // segunda 02/11 a sábado 07/11
+      const c = checkIn({ split, date, timeAvailMin: 70 });
+      const readiness = assessReadiness(c, { spineCare: true });
+      const p = buildPlan({
+        checkIn: c, readiness, exercises: EXERCISES, historyFor: () => [], refLoads: {},
+        template: DEFAULT_TEMPLATES[split], weekSets: weeklySetsByMuscle(sessions, '2026-11-02'),
+      });
+      sessions.push({
+        id: String(d), date, split, checkInId: null, readinessScore: 80, tier: 'push', plan: p.items, rules: [], startedAt: d, endedAt: d + 1,
+        entries: p.items.map((i) => ({
+          exerciseId: i.exerciseId,
+          sets: Array.from({ length: setCount(i) }, (_, k) => ({ load: 20, reps: 10, at: k, ...(i.perSide ? { side: k % 2 ? 'R' : 'L' } : {}) })) as SetLog[],
+        })),
+      } as Session);
+    });
+    const week = weeklySetsByMuscle(sessions, '2026-11-02');
+    const biceps = week.get('biceps') ?? 0;
+    expect(biceps).toBeGreaterThanOrEqual(12);
+    expect(biceps).toBeLessThanOrEqual(20);
+    for (const [, v] of week) expect(v).toBeLessThanOrEqual(26);
+  });
+
+  it('ombro: desenvolvimento + elevação lateral (posterior já recebe as remadas)', () => {
+    const ids = run('upper').items.map((i) => i.exerciseId);
+    expect(ids).toContain('shoulder_press_machine');
+    expect(ids).toContain('lateral_raise_db');
+  });
+
+  it('tríceps no superior: paralelas (composto) + francês; dia de máquinas troca as paralelas', () => {
+    const ids = run('upper').items.map((i) => i.exerciseId);
+    expect(ids).toEqual(expect.arrayContaining(['dips', 'french_press_machine']));
+    const c = checkIn({ split: 'upper', timeAvailMin: 120, sleepHours: 5.5 });
+    const machines = buildPlan({ checkIn: c, readiness: assessReadiness(c, { spineCare: true }), exercises: EXERCISES, historyFor: () => [], refLoads: {}, template: DEFAULT_TEMPLATES.upper });
+    expect(machines.items.map((i) => i.exerciseId)).not.toContain('dips');
+  });
+
+  it('braços e core inclui hiperextensão lombar, que sai com a lombar irritada', () => {
+    expect(run('arms_core').items.map((i) => i.exerciseId)).toContain('back_extension_45');
+    const c = checkIn({ split: 'arms_core', timeAvailMin: 120, spineAlert: true });
+    const p = buildPlan({ checkIn: c, readiness: assessReadiness(c, { spineCare: true }), exercises: EXERCISES, historyFor: () => [], refLoads: {}, template: DEFAULT_TEMPLATES.arms_core });
+    expect(p.items.map((i) => i.exerciseId)).not.toContain('back_extension_45');
+  });
+
   it('volume semanal alto tira 1 exercício do grupo', () => {
     const p = run('upper', { weekSets: new Map([['back', 22]]) });
     expect(p.items.filter((i) => groupOf(i.exerciseId) === 'back')).toHaveLength(2);

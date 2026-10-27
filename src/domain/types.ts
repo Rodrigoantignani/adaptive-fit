@@ -81,6 +81,7 @@ export type Muscle =
   | 'glutes'
   | 'adductors'
   | 'abductors'
+  | 'lower_back'
   | 'core';
 
 export interface Exercise {
@@ -95,6 +96,8 @@ export interface Exercise {
   unilateral: boolean;
   /** Multiarticular (composto): prioridade de volume, nunca cortado pelo limite por músculo. */
   compound: boolean;
+  /** Auxiliares do composto: cada série conta ½ para eles no volume semanal. */
+  secondary?: Muscle[];
   /** Foto da máquina (data URL JPEG comprimido) para reconhecer na academia. */
   photo?: string;
   custom?: boolean;

@@ -135,6 +135,20 @@ function TemplateEditor() {
                 +
               </button>
             </div>
+            <select
+              class="sets-select"
+              aria-label={`Séries de ${GROUPS[s.group].label}`}
+              value={String(s.sets ?? '')}
+              onChange={(e) => {
+                const v = e.currentTarget.value;
+                save(slots.map((x, j) => (j === i ? { ...x, sets: v ? Number(v) : undefined } : x)));
+              }}
+            >
+              <option value="">séries auto</option>
+              <option value="2">× 2 séries</option>
+              <option value="3">× 3 séries</option>
+              <option value="4">× 4 séries</option>
+            </select>
             <button class="link" aria-label="Subir" disabled={i === 0} onClick={() => move(i, -1)}>
               ↑
             </button>

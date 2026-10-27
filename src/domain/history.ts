@@ -49,8 +49,8 @@ export function lastSideStrength(sessions: Session[], exerciseId: string): { L: 
 }
 
 /**
- * Séries semanais por músculo principal (unilateral: E + D = 1 série).
- * Referência de hipertrofia: ~10–20 séries/semana por músculo.
+ * Séries semanais por músculo (unilateral: E + D = 1 série). Compostos contam ½ série
+ * para os auxiliares (puxada → bíceps, supino → tríceps). Referência: ~10–20 por músculo.
  */
 export function weeklySetsByMuscle(sessions: Session[], weekStartIso: string): Map<Muscle, number> {
   const out = new Map<Muscle, number>();
@@ -61,6 +61,7 @@ export function weeklySetsByMuscle(sessions: Session[], weekStartIso: string): M
       if (!ex || !e.sets.length) continue;
       const n = e.sets.reduce((a, st) => a + (st.side ? 0.5 : 1), 0);
       out.set(ex.muscle, (out.get(ex.muscle) ?? 0) + n);
+      for (const m of ex.secondary ?? []) out.set(m, (out.get(m) ?? 0) + n / 2);
     }
   }
   return out;
