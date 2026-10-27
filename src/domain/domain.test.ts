@@ -13,6 +13,7 @@ import { analyzeFunctional, functionalFlags, reassessDue } from './functional';
 import { lastSideStrength, nextInRotation, suggestSplit, weeklySetsByMuscle } from './history';
 import { buildDailyNote, obsidianNewUri } from './obsidian';
 import { buildPlan, estimateSeconds, isAmrapNext, nextSide, setCount } from './planner';
+import { programWeek } from './periodization';
 import { nextTarget } from './progression';
 import { assessReadiness } from './readiness';
 import { dayDefaults, sleepGuess, workFor } from './routine';
@@ -130,8 +131,10 @@ describe('planejador', () => {
     const ids = p.items.map((i) => i.exerciseId);
     expect(ids).not.toContain('back_squat');
     expect(ids).not.toContain('romanian_deadlift');
-    expect(p.items.find((i) => i.exerciseId === 'split_squat_db')?.substitutedFor).toBe('back_squat');
-    expect(p.items.find((i) => i.exerciseId === 'seated_leg_curl')?.substitutedFor).toBe('romanian_deadlift');
+    expect(p.items.find((i) => i.exerciseId === 'machine_squat')?.substitutedFor).toBe('back_squat');
+    const rdlSub = p.items.find((i) => i.substitutedFor === 'romanian_deadlift');
+    expect(rdlSub).toBeDefined();
+    expect(EXERCISES.find((e) => e.id === rdlSub!.exerciseId)).toMatchObject({ muscle: 'hamstrings', equipment: 'machine' });
   });
 
   it('dia de máquinas mantém a barra assistida, troca halteres por máquina e tira a roda abdominal', () => {
@@ -316,9 +319,8 @@ describe('ajustes do dia', () => {
   it('força desigual nos unilaterais define o lado fraco', () => {
     const c = checkIn({ split: 'lower' });
     const readiness = assessReadiness(c, null);
-    const lib = EXERCISES.map((e) => (e.id === 'leg_extension' ? { ...e, unilateral: true } : e));
-    const p = buildPlan({ checkIn: c, readiness, exercises: lib, historyFor: () => [], refLoads: {}, sideStrength: (id) => (id === 'leg_extension' ? { L: 40, R: 46 } : null) });
-    const it = p.items.find((i) => i.exerciseId === 'leg_extension')!;
+    const p = buildPlan({ checkIn: c, readiness, exercises: EXERCISES, historyFor: () => [], refLoads: {}, sideStrength: (id) => (id === 'kneeling_leg_curl_uni' ? { L: 40, R: 46 } : null) });
+    const it = p.items.find((i) => i.exerciseId === 'kneeling_leg_curl_uni')!;
     expect(it.weakSide).toBe('L');
     expect(it.extraSet).toBe(true);
   });
@@ -544,6 +546,108 @@ describe('ingestão planejada por dia', () => {
     const base = plannedIntake(s, '2026-10-28')!.kcal; // quarta
     expect(plannedIntake(s, '2026-10-30')!.kcal).toBeCloseTo(base + 89, 0); // sexta: turno
     expect(plannedIntake(s, '2026-11-01')!.kcal).toBeCloseTo(base + 517, 0); // domingo: pizza
+  });
+});
+
+describe('dia de inferior como um treinador montaria', () => {
+  const lower = (over: Partial<CheckIn> = {}, history: Record<string, string> = {}) => {
+    const c = checkIn({ split: 'lower', ...over });
+    const readiness = assessReadiness(c, { spineCare: true });
+    const historyFor = (id: string) => (history[id] ? [{ date: history[id], sets: [{ load: 100, reps: 10, at: 0 }] }] : []);
+    return buildPlan({ checkIn: c, readiness, exercises: EXERCISES, historyFor, refLoads: {} });
+  };
+  const muscleOf = (id: string) => EXERCISES.find((e) => e.id === id)!.muscle;
+
+  it('glúteo, adutor e abdutor entram; nunca dois leg press juntos', () => {
+    const ids = lower().items.map((i) => i.exerciseId);
+    expect(ids).toEqual(expect.arrayContaining(['hip_thrust_machine', 'kneeling_leg_curl_uni']));
+    expect(ids.filter((id) => id.startsWith('leg_press')).length).toBe(1);
+  });
+
+  it('no máximo 2 exercícios por músculo', () => {
+    const counts = new Map<string, number>();
+    for (const it of lower().items) counts.set(muscleOf(it.exerciseId), (counts.get(muscleOf(it.exerciseId)) ?? 0) + 1);
+    for (const n of counts.values()) expect(n).toBeLessThanOrEqual(2);
+  });
+
+  it('compostos sempre entram; o isolador que sobra sai', () => {
+    const p = lower();
+    const quads = p.items.filter((i) => muscleOf(i.exerciseId) === 'quads').map((i) => i.exerciseId);
+    expect(quads.every((id) => EXERCISES.find((e) => e.id === id)!.compound)).toBe(true);
+    expect(p.dropped.find((d) => d.exerciseId === 'leg_extension')?.reason).toContain('compostos');
+  });
+
+  it('pouco tempo: isoladores perdem séries antes dos compostos', () => {
+    for (const t of [40, 45, 50]) {
+      const items = plan(checkIn({ timeAvailMin: t })).items;
+      const isComp = (id: string) => EXERCISES.find((e) => e.id === id)!.compound;
+      const minComp = Math.min(...items.filter((i) => isComp(i.exerciseId)).map((i) => i.sets));
+      const maxIso = Math.max(0, ...items.filter((i) => !isComp(i.exerciseId)).map((i) => i.sets));
+      expect(minComp).toBeGreaterThanOrEqual(maxIso);
+    }
+  });
+
+  it('agachamento na máquina: ok com cuidado de coluna, sai com a coluna irritada', () => {
+    expect(lower().items.map((i) => i.exerciseId)).toContain('machine_squat');
+    const irritated = lower({ spineAlert: true });
+    expect(irritated.items.map((i) => i.exerciseId)).not.toContain('machine_squat');
+    const novo = lower().items.find((i) => i.exerciseId === 'machine_squat')!;
+    expect(novo.notes?.join(' ')).toContain('Adaptação');
+  });
+
+  it('leg press 45° e horizontal revezam pelo histórico', () => {
+    const after45 = lower({}, { leg_press_45: '2026-10-25' }).items.map((i) => i.exerciseId);
+    expect(after45).toContain('leg_press_horizontal');
+    expect(after45).not.toContain('leg_press_45');
+    const afterH = lower({}, { leg_press_45: '2026-10-18', leg_press_horizontal: '2026-10-25' }).items.map((i) => i.exerciseId);
+    expect(afterH).toContain('leg_press_45');
+  });
+
+  it('pouco tempo: adutora e abdutora viram super-série', () => {
+    let checked = 0;
+    for (const t of [45, 50, 55, 60, 65, 70]) {
+      const p = lower({ timeAvailMin: t });
+      const add = p.items.find((i) => i.exerciseId === 'hip_adduction');
+      const abd = p.items.find((i) => i.exerciseId === 'hip_abduction');
+      if (add && abd && p.rules.some((r) => r.id === 'time')) {
+        expect(add.supersetWith).toBe('hip_abduction');
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe('programa periodizado', () => {
+  it('ciclos de 6 semanas com fases e técnicas liberadas aos poucos', () => {
+    expect(programWeek('2026-10-26', '2026-10-27')).toMatchObject({ cycle: 1, week: 1, phase: 'adaptation', unlocked: [] });
+    expect(programWeek('2026-10-26', '2026-11-09')).toMatchObject({ week: 3, phase: 'accumulation', newThisWeek: ['rest_pause'] });
+    expect(programWeek('2026-10-26', '2026-11-23')).toMatchObject({ week: 5, phase: 'intensification', newThisWeek: ['drop_set'] });
+    expect(programWeek('2026-10-26', '2026-11-30')).toMatchObject({ week: 6, phase: 'deload' });
+    const c2 = programWeek('2026-10-26', '2026-12-21');
+    expect(c2).toMatchObject({ cycle: 2, week: 3 });
+    expect(c2.newThisWeek).toEqual(['cluster', 'isometric']);
+    expect(c2.unlocked).toEqual(expect.arrayContaining(['rest_pause', 'drop_set', 'cluster']));
+  });
+
+  it('adaptação: nenhuma técnica; acumulação: a novidade da semana entra', () => {
+    const adapt = plan(checkIn(), false, { program: programWeek('2026-10-26', '2026-10-27') });
+    expect(adapt.items.some((i) => i.technique)).toBe(false);
+    expect(adapt.rules.find((r) => r.id === 'program')?.title).toContain('Adaptação');
+    const acc = plan(checkIn(), false, { program: programWeek('2026-10-26', '2026-11-09') });
+    expect(acc.items.filter((i) => i.technique).map((i) => i.technique)).toEqual(['rest_pause']);
+  });
+
+  it('deload: uma série a menos e nenhuma subida de carga', () => {
+    const history = () => [{ date: 'd', sets: [10, 10, 10].map((r) => ({ load: 30, reps: r, at: 0 })) }];
+    const c = checkIn();
+    const readiness = assessReadiness(c, null);
+    const normal = buildPlan({ checkIn: c, readiness, exercises: EXERCISES, historyFor: history, refLoads: {} });
+    const deload = buildPlan({ checkIn: c, readiness, exercises: EXERCISES, historyFor: history, refLoads: {}, program: programWeek('2026-10-26', '2026-11-30') });
+    expect(normal.items.some((i) => i.target.action === 'increase')).toBe(true);
+    expect(deload.items.every((i) => i.target.action !== 'increase')).toBe(true);
+    const first = deload.items[0];
+    expect(first.sets).toBeLessThan(normal.items.find((i) => i.exerciseId === first.exerciseId)!.sets);
   });
 });
 

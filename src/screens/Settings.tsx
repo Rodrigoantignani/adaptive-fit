@@ -8,7 +8,7 @@ import { dayLoadFromWork, hoursBetween } from '../domain/energy';
 import { workFor } from '../domain/routine';
 import type { Profile, Sex, Side, SplitId, WeekDay, WorkDay } from '../domain/types';
 import { TechniqueGlossary } from '../ui/TechniqueSheet';
-import { formatBR, localISODate, parseISO } from '../lib/date';
+import { formatBR, localISODate, parseISO, weekStart } from '../lib/date';
 import { copyText, downloadText } from '../lib/device';
 import { fmtNum } from '../lib/format';
 import { Card, Choice, Notice, NumField, Toggle } from '../ui/kit';
@@ -317,6 +317,14 @@ export function Settings() {
       <Card title="Técnicas de treino">
         <p class="muted small">Toque para ver como fazer. O plano sugere algumas sozinho (drop-set, rest-pause, superlento) conforme a prontidão e o tempo.</p>
         <TechniqueGlossary />
+        {app.value.settings.programStart && (
+          <button
+            class="btn btn-ghost"
+            onClick={() => confirm('Reiniciar o programa na semana 1 (adaptação)?') && saveSettings({ programStart: weekStart(localISODate()) })}
+          >
+            Reiniciar programa (semana 1)
+          </button>
+        )}
       </Card>
 
       <Card title="Seus dados">

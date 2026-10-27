@@ -226,7 +226,13 @@ function ExerciseEditor({ initial, onClose }: { initial: Exercise; onClose: () =
             { value: 'high', label: 'Alta', hint: 'Degrau, saltos' },
           ]}
         />
-        <Toggle label="Carga sobre a coluna" hint="Barra nas costas, carga axial: sai em dias de proteção lombar." checked={e.axialLoad} onChange={(v) => set('axialLoad', v)} />
+        <Toggle label="Carga axial sem apoio" hint="Barra nas costas, peso livre em pé: nunca entra com cuidado permanente de coluna." checked={e.axialLoad} onChange={(v) => set('axialLoad', v)} />
+        <Toggle
+          label="Carga na coluna com apoio"
+          hint="Ex.: agachamento na máquina com ombreiras. Entra no dia a dia; sai só com alerta lombar ou dor."
+          checked={!!e.spineCaution}
+          onChange={(v) => set('spineCaution', v)}
+        />
         <Toggle
           label="Exige muito do core"
           hint="Sai quando o abdômen ou a lombar estão doloridos."

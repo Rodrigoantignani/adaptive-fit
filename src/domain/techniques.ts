@@ -202,36 +202,68 @@ export const TECHNIQUES: Technique[] = [
 const BY_ID = new Map(TECHNIQUES.map((t) => [t.id, t]));
 export const techniqueById = (id: string) => BY_ID.get(id as TechniqueId);
 
-const isMachineIsolation = (e: Exercise) => (e.equipment === 'machine' || e.equipment === 'cable') && e.loadMode !== 'assisted' && !e.axialLoad;
+/** Máquina ou polia, sem carga axial: onde técnicas de falha são seguras para a coluna. */
+const isMachineSafe = (e: Exercise) => (e.equipment === 'machine' || e.equipment === 'cable') && e.loadMode !== 'assisted' && !e.axialLoad;
+
+/** Onde cada técnica faz sentido. Isoladoras pegam o fim do treino; as de composto, o começo. */
+const FITS: Partial<Record<TechniqueId, { fit: (e: Exercise) => boolean; fromStart?: boolean }>> = {
+  drop_set: { fit: (e) => isMachineSafe(e) && !e.compound && e.priority === 3 },
+  rest_pause: { fit: (e) => isMachineSafe(e) && e.priority >= 2 },
+  cluster: { fit: (e) => isMachineSafe(e) && e.compound && !e.spineCaution, fromStart: true },
+  isometric: { fit: (e) => isMachineSafe(e) && !e.compound },
+  super_slow: { fit: (e) => isMachineSafe(e) && e.priority >= 2 },
+  method_21: { fit: (e) => isMachineSafe(e) && e.muscle === 'biceps' },
+  fst7: { fit: (e) => isMachineSafe(e) && !e.compound },
+  pyramid: { fit: (e) => isMachineSafe(e) && e.compound && !e.spineCaution, fromStart: true },
+  partials: { fit: (e) => isMachineSafe(e) && !e.compound },
+};
+
+const PREFERENCE: TechniqueId[] = ['drop_set', 'rest_pause', 'cluster', 'isometric', 'method_21', 'pyramid', 'partials', 'fst7'];
 
 /**
- * Sugere no máximo 2 técnicas para o dia, sempre na última série e só em máquina/polia.
- * Progredir → drop-set e rest-pause · pouco tempo → rest-pause · recuperar → superlento.
+ * Técnicas do dia, sempre na última série e só em máquina/polia.
+ * Com programa: respeita a fase (nenhuma na adaptação e no deload), as técnicas já liberadas
+ * e prioriza a novidade da semana. Sem programa: drop-set/rest-pause em dias bons, superlento em recuperação.
  */
-export function suggestTechniques(items: PlannedExercise[], byId: Map<string, Exercise>, readiness: Readiness, timeTight: boolean) {
-  const pick = (filter: (e: Exercise, it: PlannedExercise) => boolean) =>
-    [...items].reverse().find((it) => {
-      const e = byId.get(it.exerciseId);
-      return e && !it.technique && !it.perSide && isMachineIsolation(e) && filter(e, it);
+export function suggestTechniques(
+  items: PlannedExercise[],
+  byId: Map<string, Exercise>,
+  readiness: Readiness,
+  timeTight: boolean,
+  program?: { maxTechniques: number; unlocked: TechniqueId[]; newThisWeek: TechniqueId[] },
+) {
+  const assign = (id: TechniqueId): boolean => {
+    const rule = FITS[id];
+    if (!rule) return false;
+    const list = rule.fromStart ? items : [...items].reverse();
+    const it = list.find((x) => {
+      const e = byId.get(x.exerciseId);
+      return e && !x.technique && !x.perSide && rule.fit(e);
     });
+    if (it) it.technique = id;
+    return !!it;
+  };
 
+  // Recuperação vem primeiro: superlento é a única técnica que alivia em vez de cansar.
   if (readiness.tier === 'recover') {
-    const it = pick((e) => e.priority >= 2);
-    if (it) it.technique = 'super_slow';
+    if (!program || program.unlocked.includes('super_slow')) assign('super_slow');
     return;
   }
   if (readiness.flags.reducedVolume) return;
 
-  let count = 0;
-  if (readiness.tier === 'push') {
-    const drop = pick((e) => e.priority === 3);
-    if (drop) {
-      drop.technique = 'drop_set';
-      count++;
-    }
+  if (!program) {
+    let count = 0;
+    if (readiness.tier === 'push' && assign('drop_set')) count++;
+    if ((timeTight || readiness.tier === 'push') && count < 2) assign('rest_pause');
+    return;
   }
-  if (timeTight || readiness.tier === 'push') {
-    const rp = pick((e) => e.priority >= 2);
-    if (rp && count < 2) rp.technique = 'rest_pause';
+
+  const allowed = new Set(program.unlocked);
+  let max = program.maxTechniques - (readiness.tier === 'maintain' ? 1 : 0);
+  const order = [...program.newThisWeek, ...PREFERENCE.filter((id) => !program.newThisWeek.includes(id))];
+  for (const id of order) {
+    if (max <= 0) break;
+    if (!allowed.has(id) || (id === 'fst7' && timeTight)) continue;
+    if (assign(id)) max--;
   }
 }

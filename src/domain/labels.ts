@@ -28,6 +28,9 @@ export const MUSCLE_LABEL: Record<Muscle, string> = {
   quads: 'Quadríceps',
   hamstrings: 'Posteriores',
   calves: 'Panturrilha',
+  glutes: 'Glúteos',
+  adductors: 'Adutores',
+  abductors: 'Abdutores',
   core: 'Core',
 };
 

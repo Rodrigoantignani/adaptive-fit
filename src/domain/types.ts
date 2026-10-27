@@ -78,6 +78,9 @@ export type Muscle =
   | 'quads'
   | 'hamstrings'
   | 'calves'
+  | 'glutes'
+  | 'adductors'
+  | 'abductors'
   | 'core';
 
 export interface Exercise {
@@ -90,6 +93,8 @@ export interface Exercise {
   priority: 1 | 2 | 3;
   /** Executado um lado de cada vez: séries registradas por lado. */
   unilateral: boolean;
+  /** Multiarticular (composto): prioridade de volume, nunca cortado pelo limite por músculo. */
+  compound: boolean;
   /** Foto da máquina (data URL JPEG comprimido) para reconhecer na academia. */
   photo?: string;
   custom?: boolean;
@@ -102,12 +107,16 @@ export interface Exercise {
   sets: number;
   restSec: number;
   axialLoad: boolean;
+  /** Carga na coluna com apoio (ex.: agachamento na máquina): ok no dia a dia, sai só com a coluna irritada. */
+  spineCaution?: boolean;
   coreDemand: 'low' | 'high';
   /** Carga no tendão de Aquiles / dorsiflexão com peso. */
   ankleLoad: 'none' | 'moderate' | 'high';
   /** 'assisted': a carga é ajuda (contrapeso); progredir = tirar ajuda. */
   loadMode: 'normal' | 'assisted';
   antagonist?: string;
+  /** Variação que reveza com esta (ex.: leg press 45° ↔ horizontal): entra a feita há mais tempo. */
+  rotateWith?: string;
   cue?: string;
 }
 
@@ -177,6 +186,8 @@ export interface ReadinessFlags {
   machinesOnly: boolean;
   noAxial: boolean;
   noHighCore: boolean;
+  /** Coluna irritada hoje (alerta lombar, dor lombar, dor que irradia): sai até o que tem apoio. */
+  spineIrritated: boolean;
   reducedVolume: boolean;
   /** 0 livre · 1 condição presente (sai carga alta) · 2 dor ≥ 5 (sai carga moderada também) */
   ankleLevel: 0 | 1 | 2;

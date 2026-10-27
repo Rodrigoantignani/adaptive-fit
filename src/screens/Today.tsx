@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { discardSession, finishSession, logSet, removeSet, startSession, upsertCheckIn } from '../data/actions';
+import { discardSession, finishSession, logSet, removeSet, saveSettings, startSession, upsertCheckIn } from '../data/actions';
 import { nutritionFor } from '../data/nutrition';
 import { app } from '../data/store';
 import { activeLibrary, exerciseById } from '../domain/exercises';
@@ -7,10 +7,11 @@ import { functionalFlags, latestFunctional, reassessDue } from '../domain/functi
 import { lastSideStrength, performanceHistory, sessionRecords, sessionTotals } from '../domain/history';
 import { ACTION_LABEL, DAY_LOAD_LABEL, SIDE_LABEL, SORENESS_LABEL, SPLIT_HINT, SPLIT_LABEL, SPLIT_ORDER, TIER_LABEL } from '../domain/labels';
 import { buildPlan, isAmrapNext, nextSide, setCount } from '../domain/planner';
+import { CYCLE_WEEKS, PHASE_INFO, programWeek } from '../domain/periodization';
 import { assessReadiness } from '../domain/readiness';
 import { dayDefaults, latestBilateral, latestWeight, workFor } from '../domain/routine';
 import type { CheckIn, CorrectiveBlock, DayLoad, Exercise, PlannedExercise, Readiness, Session, SetLog, Side, SorenessArea, SplitId } from '../domain/types';
-import { formatBR, localISODate } from '../lib/date';
+import { formatBR, localISODate, weekStart } from '../lib/date';
 import { useWakeLock } from '../lib/device';
 import { fmtDuration, fmtNum } from '../lib/format';
 import { uid } from '../lib/id';
@@ -205,6 +206,7 @@ function usePlan(checkIn: CheckIn) {
         learnedRest: settings.learnedRest,
         functional: functionalFlags(latestFunctional(functionalTests)),
         reassess: reassessDue(functionalTests, checkIn.date),
+        program: settings.programStart ? programWeek(settings.programStart, checkIn.date) : undefined,
       }),
     [checkIn, readiness, sessions, settings, customExercises, assessments, profile, functionalTests],
   );
@@ -255,6 +257,62 @@ function CorrectiveCard({ block, checkable }: { block: CorrectiveBlock; checkabl
   );
 }
 
+/** Onde você está no programa: ciclo, fase, reserva alvo e a técnica nova da semana. */
+function ProgramCard({ date }: { date: string }) {
+  const start = app.value.settings.programStart;
+  if (!start) {
+    return (
+      <Card title="Programa periodizado">
+        <p class="small">
+          Ciclos de 6 semanas: adaptação → acumulação → intensificação → deload. A cada ciclo, novas técnicas avançadas são liberadas, uma de cada vez,
+          com explicação.
+        </p>
+        <button class="btn btn-ghost" onClick={() => saveSettings({ programStart: weekStart(date) })}>
+          Começar nesta semana
+        </button>
+      </Card>
+    );
+  }
+  const p = programWeek(start, date);
+  const info = PHASE_INFO[p.phase];
+  return (
+    <Card title={`Ciclo ${p.cycle} · ${info.label}`} aside={`semana ${p.week}/${CYCLE_WEEKS}`} class={`program phase-${p.phase}`}>
+      <div class="cycle-dots" aria-hidden="true">
+        {Array.from({ length: CYCLE_WEEKS }, (_, i) => (
+          <span key={i} class={i + 1 < p.week ? 'done' : i + 1 === p.week ? 'now' : ''} />
+        ))}
+      </div>
+      <p class="small">{info.detail}</p>
+      <div class="program-meta">
+        <span>
+          Reserva alvo: <b>{info.rir} reps</b>
+        </span>
+        <span>
+          Técnicas por treino: <b>{info.maxTechniques || 'nenhuma'}</b>
+        </span>
+      </div>
+      {p.newThisWeek.length > 0 && (
+        <div class="novelty">
+          <strong>Novidade da semana</strong>
+          <div class="tags">
+            {p.newThisWeek.map((id) => (
+              <TechniqueTag key={id} id={id} />
+            ))}
+          </div>
+        </div>
+      )}
+      {p.unlocked.length > 0 && p.newThisWeek.length !== p.unlocked.length && (
+        <div class="tags">
+          <small class="muted">Liberadas:</small>
+          {p.unlocked.filter((id) => !p.newThisWeek.includes(id)).map((id) => (
+            <TechniqueTag key={id} id={id} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function PlanView({ checkIn, onEdit, trainedToday }: { checkIn: CheckIn; onEdit: () => void; trainedToday: boolean }) {
   const { readiness, plan } = usePlan(checkIn);
   const fuel = nutritionFor(app.value, checkIn.date);
@@ -280,6 +338,8 @@ function PlanView({ checkIn, onEdit, trainedToday }: { checkIn: CheckIn; onEdit:
           </ul>
         </div>
       </Card>
+
+      <ProgramCard date={checkIn.date} />
 
       {fuel && (
         <div class="fuel-line">

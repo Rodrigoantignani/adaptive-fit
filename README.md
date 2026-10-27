@@ -28,6 +28,9 @@ PWA instalável, funciona offline e guarda **todos os dados no próprio aparelho
 | **Agenda de trabalho** | Por dia da semana: horas sentado e turno em pé (início/fim). Define a demanda física do check-in, o gasto calórico e o sono esperado (noite de turno até tarde ⇒ check-in já vem com ~6 h). |
 | **Dieta** | Gasto do dia (Katch-McArdle pela massa magra + rotina + turno em pé + treino + caminhada), macros por dia (proteína e gordura fixas, carboidrato acompanha o gasto), plano alimentar em gramas com troca equivalente automática, complemento do dia respeitando jejum, refeições aceitas e IG baixo quando o carboidrato dá sono. |
 | **Calibração pelo peso** | Peso estável comendo o plano ⇒ o gasto real é a ingestão: as metas passam a usar o dado observado, não só a fórmula. |
+| **Programa periodizado** | Ciclos de 6 semanas (adaptação → acumulação → intensificação → deload) com reserva alvo por fase; técnicas avançadas liberadas uma de cada vez por ciclo, com "novidade da semana" e ficha explicativa. Deload tira uma série e segura as cargas. |
+| **Compostos primeiro** | Multiarticulares vêm antes e nunca são cortados pelo limite de 2 exercícios por músculo; com pouco tempo, isoladores perdem séries antes. Variações revezam (leg press 45° ↔ horizontal). |
+| **Coluna com nuance** | Carga axial sem apoio (barra nas costas) nunca entra com cuidado de coluna; com apoio (agachamento na máquina) entra no dia a dia e sai só com alerta lombar ou dor. |
 | **Guia de medidas** | Como medir cada dobra e perímetro para avaliações comparáveis. |
 | **Máquinas da sua academia** | Cadastre máquinas novas com foto (comprimida no aparelho), dias, prioridade, unilateral, carga inicial e ajuste da máquina. Edite ou oculte as padrão. |
 | **Dupla progressão** | Bateu o topo da faixa em todas as séries → sobe carga. Duas sessões abaixo da faixa → desce um degrau. Em modo recuperação, nunca sobe. |

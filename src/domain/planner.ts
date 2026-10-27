@@ -5,6 +5,7 @@ import { exerciseById } from './exercises';
 import type { FunctionalFlags } from './functional';
 import { SIDE_LABEL } from './labels';
 import { nextTarget, type Performance } from './progression';
+import { CYCLE_WEEKS, PHASE_INFO, type ProgramWeek } from './periodization';
 import { suggestTechniques } from './techniques';
 import type {
   CheckIn,
@@ -29,12 +30,14 @@ const SETUP_SEC = 60;
 const SPLIT_MUSCLES: Record<SplitId, Muscle[] | 'all'> = {
   full_body: 'all',
   upper: ['chest', 'back', 'front_delt', 'side_delt', 'rear_delt', 'biceps', 'triceps', 'forearm', 'core'],
-  lower: ['quads', 'hamstrings', 'calves', 'core'],
+  lower: ['quads', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors', 'core'],
 };
 
 const PAIR_MUSCLE: Record<string, Muscle> = { biceps: 'biceps', forearm: 'forearm', thigh: 'quads', calf: 'calves' };
 
 /** Em super-série, estes vêm primeiro (puxar antes de empurrar; flexores antes de extensores). */
+const MAX_PER_MUSCLE = 2;
+
 const PULL_MUSCLES: Muscle[] = ['back', 'rear_delt', 'biceps', 'hamstrings'];
 
 const splitTrains = (split: SplitId, m: Muscle) => SPLIT_MUSCLES[split] === 'all' || (SPLIT_MUSCLES[split] as Muscle[]).includes(m);
@@ -44,13 +47,14 @@ const SORE_MUSCLES: Partial<Record<SorenessArea, Muscle[]>> = {
   back: ['back', 'rear_delt'],
   shoulders: ['front_delt', 'side_delt', 'rear_delt'],
   arms: ['biceps', 'triceps', 'forearm'],
-  legs: ['quads', 'hamstrings', 'calves'],
+  legs: ['quads', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors'],
 };
 
 export function exclusionReason(e: Exercise, flags: ReadinessFlags): string | null {
   if (flags.ankleLevel >= 1 && e.ankleLoad === 'high') return 'carga alta no tendão de Aquiles';
   if (flags.ankleLevel === 2 && e.ankleLoad === 'moderate') return 'dorsiflexão com carga (tendão dolorido)';
   if (flags.noAxial && e.axialLoad) return 'carga axial na coluna';
+  if (flags.spineIrritated && e.spineCaution) return 'coluna sensível hoje';
   if (flags.noHighCore && e.coreDemand === 'high') return 'exige muito do core';
   if (flags.machinesOnly && (e.equipment === 'free' || e.equipment === 'bodyweight')) return 'dia de máquinas guiadas';
   return null;
@@ -129,6 +133,8 @@ export interface PlanInput {
   /** Achados da última avaliação funcional. */
   functional?: FunctionalFlags;
   reassess?: { due: boolean; days: number | null };
+  /** Semana do programa (ciclos de 6 semanas); sem programa, o plano não periodiza. */
+  program?: ProgramWeek;
 }
 
 export function buildPlan({
@@ -143,6 +149,7 @@ export function buildPlan({
   learnedRest,
   functional,
   reassess,
+  program,
 }: PlanInput): Plan {
   const byId = new Map(exercises.map((e) => [e.id, e]));
   const { flags, tier } = readiness;
@@ -160,25 +167,39 @@ export function buildPlan({
   });
 
   // 1. Seleção por prioridade, com substituição segura
-  const candidates = exercises.filter((e) => e.splits.includes(checkIn.split)).sort((a, b) => a.priority - b.priority);
+  const candidates = exercises
+    .filter((e) => e.splits.includes(checkIn.split))
+    .sort((a, b) => a.priority - b.priority || Number(b.compound) - Number(a.compound));
   const candidateIds = new Set(candidates.map((e) => e.id));
   let items: PlannedExercise[] = [];
-  for (const e of candidates) {
+  // Até 2 exercícios por músculo: compostos sempre entram; isolador só se ainda houver espaço.
+  const perMuscle = new Map<Muscle, number>();
+  const roomFor = (ex: Exercise) => ex.compound || (perMuscle.get(ex.muscle) ?? 0) < MAX_PER_MUSCLE;
+  const take = (ex: Exercise, prio: number, extra: Partial<PlannedExercise> = {}) => {
+    items.push({ ...toItem(ex), ...extra });
+    priority.set(ex.id, prio);
+    perMuscle.set(ex.muscle, (perMuscle.get(ex.muscle) ?? 0) + 1);
+  };
+  const lastDone = (id: string) => historyFor(id)[0]?.date ?? '';
+  for (const original of candidates) {
+    // Variações que revezam (leg press 45° ↔ horizontal): entra a feita há mais tempo.
+    const partner = original.rotateWith ? byId.get(original.rotateWith) : undefined;
+    const e = partner && !exclusionReason(partner, flags) && lastDone(partner.id) < lastDone(original.id) ? partner : original;
+    if (!roomFor(e)) {
+      dropped.push({ exerciseId: e.id, reason: 'músculo já coberto pelos compostos de hoje' });
+      continue;
+    }
     const why = exclusionReason(e, flags);
     if (!why) {
-      items.push(toItem(e));
-      priority.set(e.id, e.priority);
+      take(e, original.priority, e !== original ? { notes: [`Revezando com ${original.name}: hoje é a vez desta variação.`] } : {});
       continue;
     }
     const sub = exercises.find(
-      (alt) => alt.muscle === e.muscle && !candidateIds.has(alt.id) && !items.some((i) => i.exerciseId === alt.id) && !exclusionReason(alt, flags),
+      // Variação de revezamento não serve de substituta: duplicaria o mesmo movimento (dois leg press).
+      (alt) => alt.muscle === e.muscle && !alt.rotateWith && !candidateIds.has(alt.id) && !items.some((i) => i.exerciseId === alt.id) && !exclusionReason(alt, flags),
     );
-    if (sub) {
-      items.push({ ...toItem(sub), substitutedFor: e.id });
-      priority.set(sub.id, e.priority);
-    } else {
-      dropped.push({ exerciseId: e.id, reason: why });
-    }
+    if (sub) take(sub, original.priority, { substitutedFor: e.id });
+    else dropped.push({ exerciseId: e.id, reason: why });
   }
 
   // 2. Assimetrias: lado fraco primeiro e, se relevante, unilateral extra
@@ -250,6 +271,30 @@ export function buildPlan({
   }
   // O lado forte não ganha volume: repete as reps que o fraco conseguiu.
   for (const it of items) if (it.weakSide) addNote(it, `O lado ${SIDE_LABEL[it.weakSide === 'L' ? 'R' : 'L']} faz as mesmas reps que o ${SIDE_LABEL[it.weakSide]} conseguiu, não mais.`);
+
+  // Composto que nunca foi feito: primeiras sessões leves, técnica e amplitude sem dor.
+  for (const it of items) {
+    if (it.target.action === 'start' && byId.get(it.exerciseId)?.compound) {
+      addNote(it, 'Adaptação: nas 2 primeiras sessões use ~50–60% do que acha que aguenta, foco em técnica e amplitude sem dor.');
+    }
+  }
+
+  // Fase do programa: deload alivia; cada fase tem sua reserva (RIR) alvo.
+  if (program) {
+    const info = PHASE_INFO[program.phase];
+    if (program.phase === 'deload') {
+      for (const it of items) {
+        if (!lighter) it.sets = Math.max(2, it.sets - 1);
+        holdLoad(it, 'Semana de deload: carga mantida.');
+      }
+    }
+    rules.push({
+      id: 'program',
+      tone: program.phase === 'deload' ? 'good' : program.phase === 'intensification' ? 'warn' : 'info',
+      title: `Ciclo ${program.cycle} · semana ${program.week}/${CYCLE_WEEKS} · ${info.label}`,
+      detail: `${info.detail} Reserva alvo: ${info.rir} reps.`,
+    });
+  }
 
   // 2c. Músculos doloridos e tendão
   const sore = new Set(checkIn.soreness.flatMap((a) => SORE_MUSCLES[a] ?? []));
@@ -360,8 +405,11 @@ export function buildPlan({
         exCut += out.size;
       }
     };
+    const isolation = (it: PlannedExercise) => !byId.get(it.exerciseId)?.compound;
     trimSets((it) => prio(it) === 3);
     dropWhere((it) => prio(it) === 3);
+    trimSets(isolation);
+    dropWhere(isolation);
     trimSets(() => true);
     dropWhere(() => true);
 
@@ -379,7 +427,13 @@ export function buildPlan({
     });
   }
 
-  suggestTechniques(items, byId, readiness, timeTight);
+  suggestTechniques(
+    items,
+    byId,
+    readiness,
+    timeTight,
+    program && { maxTechniques: PHASE_INFO[program.phase].maxTechniques, unlocked: program.unlocked, newThisWeek: program.newThisWeek },
+  );
 
   return {
     items,

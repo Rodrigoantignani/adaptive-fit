@@ -1936,6 +1936,57 @@ button.tag {
   grid-column: span 3;
 }
 
+/* ---------- v0.8: programa periodizado ---------- */
+.program.phase-intensification {
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.program.phase-deload {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.cycle-dots {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.cycle-dots span {
+  height: 6px;
+  border-radius: 99px;
+  background: var(--surface-2);
+}
+
+.cycle-dots span.done {
+  background: var(--muted);
+}
+
+.cycle-dots span.now {
+  background: var(--primary);
+}
+
+.program-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.program-meta b {
+  color: var(--text);
+}
+
+.novelty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.12);
+  font-size: 0.82rem;
+}
+
 @media (max-width: 360px) {
   .grid-3 {
     grid-template-columns: 1fr 1fr;

@@ -96,7 +96,14 @@ export function assessReadiness(c: CheckIn, profile: Pick<Profile, 'spineCare' |
     score,
     tier,
     factors,
-    flags: { machinesOnly: cns, noAxial, noHighCore, reducedVolume: cns, ankleLevel },
+    flags: {
+      machinesOnly: cns,
+      noAxial,
+      noHighCore,
+      reducedVolume: cns,
+      ankleLevel,
+      spineIrritated: c.spineAlert || c.soreness.includes('lower_back') || Boolean(c.radiating),
+    },
     rules,
   };
 }

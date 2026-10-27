@@ -25,6 +25,8 @@ export interface Settings {
   dietBase: string;
   /** Turnos avulsos por data (trabalho sob chamada); `null` cancela o turno padrão do dia. */
   shiftDates: ShiftDates;
+  /** Início do programa periodizado (ciclos de 6 semanas); null = sem periodização. */
+  programStart: string | null;
   /** Plano alimentar base: refeições com alimentos e gramas. */
   mealPlan: Meal[];
   /** O que se come a mais nos dias de turno em pé. */
@@ -76,6 +78,7 @@ export const emptyState = (): AppState => ({
     shiftExtras: [],
     dayExtras: {},
     shiftDates: {},
+    programStart: null,
     calibration: null,
     trainsFasted: false,
     dailyWalkMin: 0,
@@ -224,6 +227,7 @@ export function mergeSeed(current: AppState, seed: AppState): AppState {
       dailyWalkMin: pick('dailyWalkMin'),
       carbSlots: pick('carbSlots'),
       avoidSpikes: pick('avoidSpikes'),
+      programStart: pick('programStart'),
       nutritionGoal: pick('nutritionGoal'),
       rotation: pick('rotation'),
       dietBase: cs.dietBase || ss.dietBase,
