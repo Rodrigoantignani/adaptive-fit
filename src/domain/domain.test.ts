@@ -15,6 +15,7 @@ import { buildDailyNote, obsidianNewUri } from './obsidian';
 import { buildPlan, estimateSeconds, isAmrapNext, nextSide, setCount } from './planner';
 import { programWeek } from './periodization';
 import { DEFAULT_TEMPLATES, GROUPS } from './templates';
+import { weeklyBudget } from './weeklyBudget';
 import { nextTarget } from './progression';
 import { assessReadiness } from './readiness';
 import { dayDefaults, sleepGuess, workFor } from './routine';
@@ -713,6 +714,32 @@ describe('montagem do treino (prioridade do usuário)', () => {
     const p = run('upper', {}, 45);
     const backSets = p.items.filter((i) => groupOf(i.exerciseId) === 'back').map((i) => i.sets);
     expect(backSets.every((s) => s === 3)).toBe(true);
+  });
+});
+
+describe('teto semanal pela carga da semana', () => {
+  it('pesa horas em pé, não dias; o sono é quem mais corta', () => {
+    expect(weeklyBudget({ shiftDays: 1, standingHours: 4.5 }).normal).toBe(20);
+    expect(weeklyBudget({ shiftDays: 2, standingHours: 8.5 }).normal).toBe(20);
+    const wedSat = weeklyBudget({ shiftDays: 4, standingHours: 14.5 });
+    expect(wedSat.normal).toBe(18);
+    expect(wedSat.priority).toBe(24);
+    expect(weeklyBudget({ shiftDays: 4, standingHours: 14.5, avgSleep: 6.2 }).normal).toBe(16);
+  });
+
+  it('semana leve: poucos turnos, sono e prontidão bons sobem o teto', () => {
+    const light = weeklyBudget({ shiftDays: 1, standingHours: 4.5, avgSleep: 7.8, avgReadiness: 78 });
+    expect(light.label).toBe('leve');
+    expect(light.normal).toBe(22);
+  });
+
+  it('grupo ★ (costas) aguenta mais volume antes de cortar', () => {
+    const c = checkIn({ split: 'upper', timeAvailMin: 120 });
+    const readiness = assessReadiness(c, { spineCare: true });
+    const base = { checkIn: c, readiness, exercises: EXERCISES, historyFor: () => [], refLoads: {}, template: DEFAULT_TEMPLATES.upper, weekSets: new Map([['back', 22]]) as Map<never, number> };
+    const backCount = (p: ReturnType<typeof buildPlan>) => p.items.filter((i) => EXERCISES.find((e) => e.id === i.exerciseId)!.muscle === 'back').length;
+    expect(backCount(buildPlan(base))).toBe(2);
+    expect(backCount(buildPlan({ ...base, priorityGroups: ['back'] }))).toBe(3);
   });
 });
 

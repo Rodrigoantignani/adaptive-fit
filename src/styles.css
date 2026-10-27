@@ -2044,6 +2044,18 @@ button.tag {
   max-width: 96px;
 }
 
+.template-list .star {
+  background: none;
+  border: 0;
+  font-size: 1.1rem;
+  color: var(--muted);
+  padding: 0 2px;
+}
+
+.template-list .star.on {
+  color: var(--primary);
+}
+
 @media (max-width: 360px) {
   .grid-3 {
     grid-template-columns: 1fr 1fr;

@@ -7,7 +7,8 @@ import { SIDE_LABEL } from './labels';
 import { nextTarget, type Performance } from './progression';
 import { CYCLE_WEEKS, PHASE_INFO, type ProgramWeek } from './periodization';
 import { suggestTechniques } from './techniques';
-import { GROUPS, slotPriority, WEEKLY_SETS_HIGH, type TemplateSlot } from './templates';
+import { GROUPS, slotPriority, WEEKLY_SETS_HIGH, type GroupId, type TemplateSlot } from './templates';
+import { WEEKLY_SETS_PRIORITY, type WeeklyBudget } from './weeklyBudget';
 import type {
   CheckIn,
   Exercise,
@@ -142,6 +143,10 @@ export interface PlanInput {
   template?: TemplateSlot[];
   /** Séries já feitas na semana por músculo (controle de volume). */
   weekSets?: Map<Muscle, number>;
+  /** Teto semanal ajustado pela carga da semana (turnos, sono, prontidão). */
+  weekBudget?: WeeklyBudget;
+  /** Grupos em especialização: teto semanal maior. */
+  priorityGroups?: GroupId[];
 }
 
 export function buildPlan({
@@ -159,6 +164,8 @@ export function buildPlan({
   program,
   template,
   weekSets,
+  weekBudget,
+  priorityGroups = [],
 }: PlanInput): Plan {
   const byId = new Map(exercises.map((e) => [e.id, e]));
   const { flags, tier } = readiness;
@@ -227,9 +234,10 @@ export function buildPlan({
       const inGroup = (e: Exercise) => group.muscles.includes(e.muscle);
       const doneThisWeek = group.muscles.reduce((a, m) => a + (weekSets?.get(m) ?? 0), 0);
       let count = slot.count;
-      if (count > 1 && doneThisWeek >= WEEKLY_SETS_HIGH) {
+      const cap = priorityGroups.includes(slot.group) ? (weekBudget?.priority ?? WEEKLY_SETS_PRIORITY) : (weekBudget?.normal ?? WEEKLY_SETS_HIGH);
+      if (count > 1 && doneThisWeek >= cap) {
         count--;
-        heavy.push(`${group.label.toLowerCase()} (${fmtNum(doneThisWeek)} séries)`);
+        heavy.push(`${group.label.toLowerCase()} (${fmtNum(doneThisWeek)} de ${cap} séries)`);
       }
       const prio = slotPriority(index);
       const before = items.length;
@@ -278,7 +286,15 @@ export function buildPlan({
         id: 'weekly_volume',
         tone: 'info',
         title: 'Volume semanal já alto',
-        detail: `Passou de ~${WEEKLY_SETS_HIGH} séries na semana: ${heavy.join(', ')}. Hoje vai 1 exercício a menos desse grupo; mais volume aí só cobra recuperação.`,
+        detail: `Atingiu o teto da semana: ${heavy.join(', ')}. Hoje vai 1 exercício a menos desse grupo; mais volume aí só cobra recuperação.`,
+      });
+    }
+    if (weekBudget && weekBudget.factor !== 1) {
+      rules.push({
+        id: 'week_budget',
+        tone: weekBudget.factor < 1 ? 'warn' : 'good',
+        title: weekBudget.factor < 1 ? 'Semana pesada: teto de volume menor' : 'Semana leve: dá para ir além',
+        detail: `${weekBudget.reasons.join(', ')}. Teto por grupo nesta semana: ${weekBudget.normal} séries (${weekBudget.priority} nos grupos ★).`,
       });
     }
   } else {

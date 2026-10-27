@@ -10,9 +10,10 @@ import { buildPlan, isAmrapNext, nextSide, setCount } from '../domain/planner';
 import { CYCLE_WEEKS, PHASE_INFO, programWeek } from '../domain/periodization';
 import { assessReadiness } from '../domain/readiness';
 import { DEFAULT_TEMPLATES } from '../domain/templates';
+import { weeklyBudget } from '../domain/weeklyBudget';
 import { dayDefaults, latestBilateral, latestWeight, workFor } from '../domain/routine';
 import type { CheckIn, CorrectiveBlock, DayLoad, Exercise, PlannedExercise, Readiness, Session, SetLog, Side, SorenessArea, SplitId } from '../domain/types';
-import { formatBR, localISODate, weekStart } from '../lib/date';
+import { formatBR, localISODate, parseISO, weekStart } from '../lib/date';
 import { useWakeLock } from '../lib/device';
 import { fmtDuration, fmtNum } from '../lib/format';
 import { uid } from '../lib/id';
@@ -210,6 +211,8 @@ function usePlan(checkIn: CheckIn) {
         program: settings.programStart ? programWeek(settings.programStart, checkIn.date) : undefined,
         template: settings.splitTemplates[checkIn.split] ?? DEFAULT_TEMPLATES[checkIn.split],
         weekSets: weeklySetsByMuscle(sessions, weekStart(checkIn.date)),
+        weekBudget: weekBudgetFor(app.value, checkIn.date),
+        priorityGroups: settings.priorityGroups,
       }),
     [checkIn, readiness, sessions, settings, customExercises, assessments, profile, functionalTests],
   );
@@ -258,6 +261,27 @@ function CorrectiveCard({ block, checkable }: { block: CorrectiveBlock; checkabl
       <p class="muted small">{block.disclaimer}</p>
     </Card>
   );
+}
+
+/** Carga da semana (seg–dom da data): turnos da agenda real, sono e prontidão dos check-ins. */
+function weekBudgetFor(s: typeof app.value, date: string) {
+  const start = parseISO(weekStart(date));
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return localISODate(d);
+  });
+  const standing = days.map((d) => workFor(d, s.settings.week, s.settings.shiftDates)?.standingH ?? 0);
+  const shiftDays = standing.filter((h) => h > 0).length;
+  const standingHours = standing.reduce((a, b) => a + b, 0);
+  const week = s.checkIns.filter((c) => days.includes(c.date));
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined);
+  return weeklyBudget({
+    shiftDays,
+    standingHours,
+    avgSleep: avg(week.map((c) => c.sleepHours)),
+    avgReadiness: avg(week.map((c) => assessReadiness(c, s.profile).score)),
+  });
 }
 
 /** Onde você está no programa: ciclo, fase, reserva alvo e a técnica nova da semana. */

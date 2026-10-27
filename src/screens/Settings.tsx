@@ -106,6 +106,7 @@ function TemplateEditor() {
   const [split, setSplit] = useState<SplitId>('upper');
   const custom = app.value.settings.splitTemplates;
   const slots = custom[split] ?? DEFAULT_TEMPLATES[split];
+  const prio = app.value.settings.priorityGroups;
   const save = (next: TemplateSlot[]) => saveSettings({ splitTemplates: { ...custom, [split]: next.filter((s) => s.count > 0) } });
   const move = (i: number, d: -1 | 1) => {
     const next = [...slots];
@@ -119,12 +120,21 @@ function TemplateEditor() {
     <Card title="Montagem do treino">
       <p class="muted small">
         Exercícios por grupo, na sua ordem de prioridade: o primeiro abre o treino e é o último a ser cortado quando falta tempo. Se um grupo já passou de ~20
-        séries na semana, o app tira 1 exercício dele.
+        séries na semana, o app tira 1 exercício dele. ★ = especialização (teto ~26): use em 1–2 grupos por ciclo, como as dorsais.
       </p>
       <Choice<SplitId> cols={2} value={split} onChange={setSplit} options={SPLIT_ORDER.map((s) => ({ value: s, label: SPLIT_LABEL[s] }))} />
       <ol class="template-list">
         {slots.map((s, i) => (
           <li key={s.group}>
+            <button
+              class={`star ${prio.includes(s.group) ? 'on' : ''}`}
+              aria-pressed={prio.includes(s.group)}
+              aria-label={`Prioridade: ${GROUPS[s.group].label}`}
+              title="Especialização: teto semanal maior"
+              onClick={() => saveSettings({ priorityGroups: prio.includes(s.group) ? prio.filter((g) => g !== s.group) : [...prio, s.group] })}
+            >
+              {prio.includes(s.group) ? '★' : '☆'}
+            </button>
             <span class="grow">{GROUPS[s.group].label}</span>
             <div class="mini-stepper">
               <button aria-label="Menos" onClick={() => save(slots.map((x, j) => (j === i ? { ...x, count: x.count - 1 } : x)))}>

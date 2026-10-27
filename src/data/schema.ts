@@ -1,7 +1,7 @@
 import type { CarbSlot } from '../domain/dietCoach';
 import type { NutritionGoal } from '../domain/energy';
 import type { Meal, MealItem } from '../domain/foods';
-import type { TemplateSlot } from '../domain/templates';
+import type { GroupId, TemplateSlot } from '../domain/templates';
 import { round } from '../lib/format';
 import type { BodyAssessment, CheckIn, Exercise, FunctionalTest, MeasureCondition, PerimeterSite, Profile, Session, ShiftDates, SplitId, WeekDay } from '../domain/types';
 
@@ -30,6 +30,8 @@ export interface Settings {
   programStart: string | null;
   /** Montagem do treino por split (exercícios por grupo, em ordem de prioridade). */
   splitTemplates: Partial<Record<SplitId, TemplateSlot[]>>;
+  /** Grupos em especialização (★): teto semanal maior. Recomendado 1–2 por ciclo. */
+  priorityGroups: GroupId[];
   /** Plano alimentar base: refeições com alimentos e gramas. */
   mealPlan: Meal[];
   /** O que se come a mais nos dias de turno em pé. */
@@ -83,6 +85,7 @@ export const emptyState = (): AppState => ({
     shiftDates: {},
     programStart: null,
     splitTemplates: {},
+    priorityGroups: [],
     calibration: null,
     trainsFasted: false,
     dailyWalkMin: 0,
@@ -233,6 +236,7 @@ export function mergeSeed(current: AppState, seed: AppState): AppState {
       avoidSpikes: pick('avoidSpikes'),
       programStart: pick('programStart'),
       splitTemplates: { ...ss.splitTemplates, ...cs.splitTemplates },
+      priorityGroups: pick('priorityGroups'),
       nutritionGoal: pick('nutritionGoal'),
       rotation: pick('rotation'),
       dietBase: cs.dietBase || ss.dietBase,
