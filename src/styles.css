@@ -1987,6 +1987,57 @@ button.tag {
   font-size: 0.82rem;
 }
 
+/* ---------- v0.9: montagem do treino ---------- */
+.template-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  counter-reset: slot;
+}
+
+.template-list li {
+  counter-increment: slot;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.template-list li::before {
+  content: counter(slot);
+  color: var(--muted);
+  font-weight: 800;
+  width: 14px;
+}
+
+.mini-stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mini-stepper button {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-weight: 800;
+}
+
+.card select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 8px;
+  font-weight: 600;
+}
+
 @media (max-width: 360px) {
   .grid-3 {
     grid-template-columns: 1fr 1fr;

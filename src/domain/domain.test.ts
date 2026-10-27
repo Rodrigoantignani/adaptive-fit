@@ -14,6 +14,7 @@ import { lastSideStrength, nextInRotation, suggestSplit, weeklySetsByMuscle } fr
 import { buildDailyNote, obsidianNewUri } from './obsidian';
 import { buildPlan, estimateSeconds, isAmrapNext, nextSide, setCount } from './planner';
 import { programWeek } from './periodization';
+import { DEFAULT_TEMPLATES, GROUPS } from './templates';
 import { nextTarget } from './progression';
 import { assessReadiness } from './readiness';
 import { dayDefaults, sleepGuess, workFor } from './routine';
@@ -615,6 +616,56 @@ describe('dia de inferior como um treinador montaria', () => {
       }
     }
     expect(checked).toBeGreaterThan(0);
+  });
+});
+
+describe('montagem do treino (prioridade do usuário)', () => {
+  const run = (split: CheckIn['split'], over: Partial<Parameters<typeof buildPlan>[0]> = {}, time = 120) => {
+    const c = checkIn({ split, timeAvailMin: time });
+    const readiness = assessReadiness(c, { spineCare: true });
+    return buildPlan({ checkIn: c, readiness, exercises: EXERCISES, historyFor: () => [], refLoads: {}, template: DEFAULT_TEMPLATES[split], ...over });
+  };
+  const groupOf = (id: string) => (Object.keys(GROUPS) as (keyof typeof GROUPS)[]).find((g) => GROUPS[g].muscles.includes(EXERCISES.find((e) => e.id === id)!.muscle));
+
+  it('superior: 3 costas primeiro, depois 2 peito, 2 ombro, 2 tríceps', () => {
+    const groups = run('upper').items.map((i) => groupOf(i.exerciseId));
+    expect(groups.slice(0, 3)).toEqual(['back', 'back', 'back']);
+    expect(groups.filter((g) => g === 'chest')).toHaveLength(2);
+    expect(groups.filter((g) => g === 'shoulders')).toHaveLength(2);
+    expect(groups.filter((g) => g === 'triceps')).toHaveLength(2);
+  });
+
+  it('inferior: compostos de quadríceps seguros para coluna e um só leg press', () => {
+    const ids = run('lower').items.map((i) => i.exerciseId);
+    expect(ids.slice(0, 2)).toEqual(expect.arrayContaining(['machine_squat']));
+    expect(ids.filter((id) => id.startsWith('leg_press'))).toHaveLength(1);
+    expect(ids).not.toContain('back_squat');
+  });
+
+  it('braços e core cobre bíceps, tríceps, antebraço e abdômen', () => {
+    const groups = new Set(run('arms_core').items.map((i) => groupOf(i.exerciseId)));
+    for (const g of ['biceps', 'triceps', 'forearm', 'core'] as const) expect(groups.has(g)).toBe(true);
+  });
+
+  it('super-série não fura a prioridade: costas continuam abrindo o treino', () => {
+    for (const time of [50, 60, 70, 80]) {
+      const groups = run('upper', {}, time).items.map((i) => groupOf(i.exerciseId));
+      const lastBack = groups.lastIndexOf('back');
+      const firstChest = groups.indexOf('chest');
+      if (firstChest >= 0) expect(firstChest).toBeGreaterThan(lastBack);
+    }
+  });
+
+  it('volume semanal alto tira 1 exercício do grupo', () => {
+    const p = run('upper', { weekSets: new Map([['back', 22]]) });
+    expect(p.items.filter((i) => groupOf(i.exerciseId) === 'back')).toHaveLength(2);
+    expect(p.rules.some((r) => r.id === 'weekly_volume')).toBe(true);
+  });
+
+  it('pouco tempo: o último grupo da montagem perde antes do primeiro', () => {
+    const p = run('upper', {}, 45);
+    const backSets = p.items.filter((i) => groupOf(i.exerciseId) === 'back').map((i) => i.sets);
+    expect(backSets.every((s) => s === 3)).toBe(true);
   });
 });
 

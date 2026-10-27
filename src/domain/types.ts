@@ -64,7 +64,7 @@ export interface BodyAssessment {
   notes?: string;
 }
 
-export type SplitId = 'full_body' | 'upper' | 'lower';
+export type SplitId = 'full_body' | 'upper' | 'lower' | 'arms_core';
 export type Equipment = 'machine' | 'cable' | 'free' | 'bodyweight';
 export type Muscle =
   | 'chest'

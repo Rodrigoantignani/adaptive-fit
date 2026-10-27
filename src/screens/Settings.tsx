@@ -6,6 +6,7 @@ import { DAY_LOAD_LABEL, SPLIT_LABEL, SPLIT_ORDER, WEEKDAY_LABEL } from '../doma
 import { dataviewSnippet } from '../domain/obsidian';
 import { dayLoadFromWork, hoursBetween } from '../domain/energy';
 import { workFor } from '../domain/routine';
+import { DEFAULT_TEMPLATES, GROUP_ORDER, GROUPS, type GroupId, type TemplateSlot } from '../domain/templates';
 import type { Profile, Sex, Side, SplitId, WeekDay, WorkDay } from '../domain/types';
 import { TechniqueGlossary } from '../ui/TechniqueSheet';
 import { formatBR, localISODate, parseISO, weekStart } from '../lib/date';
@@ -100,6 +101,82 @@ export function ProfileForm() {
 
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
+/** Montagem do treino: quantos exercícios de cada grupo, na ordem em que você prioriza. */
+function TemplateEditor() {
+  const [split, setSplit] = useState<SplitId>('upper');
+  const custom = app.value.settings.splitTemplates;
+  const slots = custom[split] ?? DEFAULT_TEMPLATES[split];
+  const save = (next: TemplateSlot[]) => saveSettings({ splitTemplates: { ...custom, [split]: next.filter((s) => s.count > 0) } });
+  const move = (i: number, d: -1 | 1) => {
+    const next = [...slots];
+    const j = i + d;
+    if (j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    save(next);
+  };
+  const unused = GROUP_ORDER.filter((g) => !slots.some((s) => s.group === g));
+  return (
+    <Card title="Montagem do treino">
+      <p class="muted small">
+        Exercícios por grupo, na sua ordem de prioridade: o primeiro abre o treino e é o último a ser cortado quando falta tempo. Se um grupo já passou de ~20
+        séries na semana, o app tira 1 exercício dele.
+      </p>
+      <Choice<SplitId> cols={2} value={split} onChange={setSplit} options={SPLIT_ORDER.map((s) => ({ value: s, label: SPLIT_LABEL[s] }))} />
+      <ol class="template-list">
+        {slots.map((s, i) => (
+          <li key={s.group}>
+            <span class="grow">{GROUPS[s.group].label}</span>
+            <div class="mini-stepper">
+              <button aria-label="Menos" onClick={() => save(slots.map((x, j) => (j === i ? { ...x, count: x.count - 1 } : x)))}>
+                −
+              </button>
+              <b>{s.count}</b>
+              <button aria-label="Mais" disabled={s.count >= 4} onClick={() => save(slots.map((x, j) => (j === i ? { ...x, count: x.count + 1 } : x)))}>
+                +
+              </button>
+            </div>
+            <button class="link" aria-label="Subir" disabled={i === 0} onClick={() => move(i, -1)}>
+              ↑
+            </button>
+            <button class="link" aria-label="Descer" disabled={i === slots.length - 1} onClick={() => move(i, 1)}>
+              ↓
+            </button>
+          </li>
+        ))}
+      </ol>
+      <div class="grid-2">
+        <select
+          value=""
+          aria-label="Adicionar grupo"
+          onChange={(e) => {
+            const g = e.currentTarget.value as GroupId;
+            if (g) save([...slots, { group: g, count: 1 }]);
+          }}
+        >
+          <option value="">+ grupo</option>
+          {unused.map((g) => (
+            <option key={g} value={g}>
+              {GROUPS[g].label}
+            </option>
+          ))}
+        </select>
+        <button
+          class="btn btn-ghost"
+          disabled={!custom[split]}
+          onClick={() => {
+            const next = { ...custom };
+            delete next[split];
+            saveSettings({ splitTemplates: next });
+          }}
+        >
+          Restaurar padrão
+        </button>
+      </div>
+      <p class="muted small">Total: {slots.reduce((a, s) => a + s.count, 0)} exercícios no máximo; o tempo do dia decide quantos cabem.</p>
+    </Card>
+  );
+}
+
 /**
  * Trabalho sob chamada: marca os turnos das próximas 2 semanas.
  * A data marcada vale mais que o padrão da rotina semanal.
@@ -176,13 +253,14 @@ function WeekCard() {
   const ROTATIONS: { value: string; label: string; hint: string; splits: SplitId[] }[] = [
     { value: 'upper,lower', label: 'Sup ↔ Inf', hint: 'Alterna todo dia', splits: ['upper', 'lower'] },
     { value: 'full_body', label: 'Full body', hint: 'Sempre corpo todo', splits: ['full_body'] },
+    { value: 'upper,lower,arms_core', label: 'Sup → Inf → Braços', hint: 'Recomendado 6×/semana', splits: ['upper', 'lower', 'arms_core'] },
     { value: 'full_body,upper,lower', label: 'Full → Sup → Inf', hint: 'Ciclo de 3', splits: ['full_body', 'upper', 'lower'] },
   ];
   return (
     <Card title="Rotina semanal">
       <Choice<string>
         label="Alternância (quando o dia está como Livre)"
-        cols={3}
+        cols={2}
         value={rotation.join(',')}
         onChange={(v) => saveSettings({ rotation: ROTATIONS.find((r) => r.value === v)!.splits })}
         options={ROTATIONS.map(({ value, label, hint }) => ({ value, label, hint }))}
@@ -309,6 +387,8 @@ export function Settings() {
           </button>
         </details>
       </Card>
+
+      <TemplateEditor />
 
       <ShiftCalendar />
 

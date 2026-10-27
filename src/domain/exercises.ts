@@ -41,7 +41,7 @@ export const DEFAULT_EXERCISES: Exercise[] = [
   ex({ id: 'pullup', compound: true, name: 'Barra fixa livre', muscle: 'back', priority: 1, equipment: 'bodyweight', repMin: 6, repMax: 10, restSec: 90, coreDemand: 'high', cue: 'Desça controlando pelas escápulas, sem balanço. Carga = lastro.' }),
 
   // Prioridade 2
-  ex({ id: 'lat_pulldown', compound: true, name: 'Puxada alta', muscle: 'back', splits: ['full_body'], equipment: 'cable', increment: 5 }),
+  ex({ id: 'lat_pulldown', compound: true, name: 'Puxada alta', muscle: 'back', splits: ['full_body', 'upper'], equipment: 'cable', increment: 5 }),
   ex({ id: 'shoulder_press_machine', compound: true, name: 'Desenvolvimento máquina', muscle: 'front_delt', splits: ['full_body', 'upper'], loadUnit: 'kg/lado', repMax: 10, restSec: 120, cue: 'Costas coladas no encosto.' }),
   ex({ id: 'romanian_deadlift', compound: true, name: 'Stiff (barra)', muscle: 'hamstrings', splits: ['lower'], equipment: 'free', repMax: 10, restSec: 120, axialLoad: true, coreDemand: 'high' }),
   ex({ id: 'lying_leg_curl', name: 'Mesa flexora', muscle: 'hamstrings', splits: ['full_body'], increment: 5, repMin: 10, restSec: 75, antagonist: 'leg_extension' }),
@@ -53,15 +53,15 @@ export const DEFAULT_EXERCISES: Exercise[] = [
   // Prioridade 3: acessórios
   ex({ id: 'rear_delt_incline', name: 'Posterior de ombro, banco 45°', muscle: 'rear_delt', splits: ['upper'], priority: 3, equipment: 'free', increment: 1, repMin: 10, repMax: 15, restSec: 60, cue: 'Testa apoiada no banco: zero tensão lombar.' }),
   ex({ id: 'lateral_raise_db', name: 'Elevação lateral (halteres)', muscle: 'side_delt', splits: ['upper'], priority: 3, equipment: 'free', increment: 1, repMin: 12, repMax: 15, restSec: 60 }),
-  ex({ id: 'scott_curl_machine', name: 'Rosca Scott máquina', muscle: 'biceps', splits: ['full_body', 'upper'], priority: 3, restSec: 75, antagonist: 'french_press_machine' }),
-  ex({ id: 'french_press_machine', name: 'Tríceps francês máquina', muscle: 'triceps', splits: ['full_body', 'upper'], priority: 3, restSec: 75, antagonist: 'scott_curl_machine' }),
-  ex({ id: 'hammer_rope', name: 'Rosca martelo na corda', muscle: 'forearm', priority: 3, equipment: 'cable', repMin: 10, restSec: 60, antagonist: 'triceps_rope' }),
-  ex({ id: 'triceps_rope', name: 'Tríceps na corda', muscle: 'triceps', priority: 3, equipment: 'cable', repMin: 10, restSec: 60, antagonist: 'hammer_rope' }),
+  ex({ id: 'scott_curl_machine', name: 'Rosca Scott máquina', muscle: 'biceps', splits: ['full_body', 'upper', 'arms_core'], priority: 3, restSec: 75, antagonist: 'french_press_machine' }),
+  ex({ id: 'french_press_machine', name: 'Tríceps francês máquina', muscle: 'triceps', splits: ['full_body', 'upper', 'arms_core'], priority: 3, restSec: 75, antagonist: 'scott_curl_machine' }),
+  ex({ id: 'hammer_rope', name: 'Rosca martelo na corda', muscle: 'forearm', splits: ['arms_core'], priority: 3, equipment: 'cable', repMin: 10, restSec: 60, antagonist: 'triceps_rope' }),
+  ex({ id: 'triceps_rope', name: 'Tríceps na corda', muscle: 'triceps', splits: ['arms_core'], priority: 3, equipment: 'cable', repMin: 10, restSec: 60, antagonist: 'hammer_rope' }),
   ex({ id: 'hip_adduction', name: 'Cadeira adutora', muscle: 'adductors', splits: ['lower'], priority: 3, increment: 5, repMin: 12, repMax: 15, restSec: 60, antagonist: 'hip_abduction', cue: 'Tronco apoiado, sem impulso; volte devagar.' }),
   ex({ id: 'hip_abduction', name: 'Cadeira abdutora', muscle: 'abductors', splits: ['lower'], priority: 3, increment: 5, repMin: 12, repMax: 15, restSec: 60, antagonist: 'hip_adduction', cue: 'Estabiliza a pelve: ajuda no equilíbrio entre os lados.' }),
-  ex({ id: 'seated_calf', name: 'Panturrilha sentado', muscle: 'calves', splits: ['lower'], priority: 3, increment: 5, repMin: 12, repMax: 15, restSec: 60, ankleLoad: 'moderate' }),
-  ex({ id: 'pallof_press', name: 'Pallof press (anti-rotação)', muscle: 'core', splits: ['full_body', 'upper'], priority: 3, unilateral: true, equipment: 'cable', increment: 2.5, repMin: 10, repMax: 12, restSec: 45, cue: 'De lado para a polia, braços estendidos à frente do peito; o tronco não gira. Expire ao estender.' }),
-  ex({ id: 'ab_wheel', name: 'Roda abdominal', muscle: 'core', splits: ['full_body', 'upper'], priority: 3, equipment: 'bodyweight', increment: 0, repMin: 8, repMax: 15, restSec: 60, coreDemand: 'high', cue: 'Pare antes de a lombar arquear.' }),
+  ex({ id: 'seated_calf', name: 'Panturrilha sentado', muscle: 'calves', splits: ['lower', 'arms_core'], priority: 3, increment: 5, repMin: 12, repMax: 15, restSec: 60, ankleLoad: 'moderate' }),
+  ex({ id: 'pallof_press', name: 'Pallof press (anti-rotação)', muscle: 'core', splits: ['full_body', 'upper', 'arms_core'], priority: 3, unilateral: true, equipment: 'cable', increment: 2.5, repMin: 10, repMax: 12, restSec: 45, cue: 'De lado para a polia, braços estendidos à frente do peito; o tronco não gira. Expire ao estender.' }),
+  ex({ id: 'ab_wheel', name: 'Roda abdominal', muscle: 'core', splits: ['full_body', 'upper', 'arms_core'], priority: 3, equipment: 'bodyweight', increment: 0, repMin: 8, repMax: 15, restSec: 60, coreDemand: 'high', cue: 'Pare antes de a lombar arquear.' }),
 
   // Substitutos seguros
   ex({ id: 'lateral_raise_machine', name: 'Elevação lateral máquina', muscle: 'side_delt', priority: 3, repMin: 12, repMax: 15, restSec: 60 }),
@@ -76,8 +76,8 @@ export const DEFAULT_EXERCISES: Exercise[] = [
   ex({ id: 'calf_press_flat', name: 'Panturrilha no leg press (amplitude curta)', muscle: 'calves', priority: 3, increment: 10, repMin: 12, repMax: 20, restSec: 45, cue: 'Só da posição neutra para cima: o calcanhar não passa da linha da plataforma.' }),
   ex({ id: 'single_arm_pulldown', compound: true, name: 'Puxada unilateral na polia (ajoelhado)', muscle: 'back', priority: 2, unilateral: true, equipment: 'cable', increment: 2.5, repMin: 10, repMax: 12, restSec: 45, cue: 'Puxe o cotovelo em direção ao bolso da calça, pausa de 2 s embaixo. Sinta o dorsal, não o bíceps.' }),
   ex({ id: 'db_row_uni', compound: true, name: 'Remada unilateral apoiada (halter)', muscle: 'back', unilateral: true, equipment: 'free', increment: 2, cue: 'Mão e joelho no banco, tronco paralelo ao chão.' }),
-  ex({ id: 'concentration_curl', name: 'Rosca concentrada unilateral', muscle: 'biceps', priority: 3, unilateral: true, equipment: 'free', increment: 1, repMin: 10, repMax: 15, restSec: 45 }),
-  ex({ id: 'cable_reverse_curl_uni', name: 'Rosca inversa unilateral na polia', muscle: 'forearm', priority: 3, unilateral: true, equipment: 'cable', increment: 2.5, repMin: 12, repMax: 15, restSec: 45, cue: 'Pegada pronada, punho firme, sem balançar o tronco.' }),
+  ex({ id: 'concentration_curl', name: 'Rosca concentrada unilateral', muscle: 'biceps', splits: ['arms_core'], priority: 3, unilateral: true, equipment: 'free', increment: 1, repMin: 10, repMax: 15, restSec: 45 }),
+  ex({ id: 'cable_reverse_curl_uni', name: 'Rosca inversa unilateral na polia', muscle: 'forearm', splits: ['arms_core'], priority: 3, unilateral: true, equipment: 'cable', increment: 2.5, repMin: 12, repMax: 15, restSec: 45, cue: 'Pegada pronada, punho firme, sem balançar o tronco.' }),
   ex({ id: 'wrist_curl_db', name: 'Rosca de punho unilateral (halter)', muscle: 'forearm', priority: 3, unilateral: true, equipment: 'free', increment: 1, repMin: 12, repMax: 20, restSec: 45, cue: 'Antebraço apoiado na coxa ou no banco, só o punho se move.' }),
 ];
 

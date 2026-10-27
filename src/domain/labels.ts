@@ -1,17 +1,19 @@
 import type { DayLoad, Equipment, MeasureCondition, Muscle, PerimeterSite, SkinfoldSite, SorenessArea, SplitId, Target, Tier } from './types';
 
-export const SPLIT_ORDER: SplitId[] = ['full_body', 'upper', 'lower'];
+export const SPLIT_ORDER: SplitId[] = ['full_body', 'upper', 'lower', 'arms_core'];
 
 export const SPLIT_LABEL: Record<SplitId, string> = {
   full_body: 'Full body',
   upper: 'Superior',
   lower: 'Inferior',
+  arms_core: 'Braços e core',
 };
 
 export const SPLIT_HINT: Record<SplitId, string> = {
   full_body: 'Corpo todo, básicos',
   upper: 'Peito, costas, ombros, braços',
   lower: 'Quadríceps, posteriores, panturrilha',
+  arms_core: 'Bíceps, tríceps, antebraço, abdômen',
 };
 
 export const WEEKDAY_LABEL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];

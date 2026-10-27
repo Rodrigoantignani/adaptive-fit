@@ -4,11 +4,12 @@ import { nutritionFor } from '../data/nutrition';
 import { app } from '../data/store';
 import { activeLibrary, exerciseById } from '../domain/exercises';
 import { functionalFlags, latestFunctional, reassessDue } from '../domain/functional';
-import { lastSideStrength, performanceHistory, sessionRecords, sessionTotals } from '../domain/history';
+import { lastSideStrength, performanceHistory, sessionRecords, sessionTotals, weeklySetsByMuscle } from '../domain/history';
 import { ACTION_LABEL, DAY_LOAD_LABEL, SIDE_LABEL, SORENESS_LABEL, SPLIT_HINT, SPLIT_LABEL, SPLIT_ORDER, TIER_LABEL } from '../domain/labels';
 import { buildPlan, isAmrapNext, nextSide, setCount } from '../domain/planner';
 import { CYCLE_WEEKS, PHASE_INFO, programWeek } from '../domain/periodization';
 import { assessReadiness } from '../domain/readiness';
+import { DEFAULT_TEMPLATES } from '../domain/templates';
 import { dayDefaults, latestBilateral, latestWeight, workFor } from '../domain/routine';
 import type { CheckIn, CorrectiveBlock, DayLoad, Exercise, PlannedExercise, Readiness, Session, SetLog, Side, SorenessArea, SplitId } from '../domain/types';
 import { formatBR, localISODate, weekStart } from '../lib/date';
@@ -161,7 +162,7 @@ function CheckInForm({ initial, onDone }: { initial: CheckIn; onDone: () => void
       />
       <Choice<SplitId>
         label="Treino do dia"
-        cols={3}
+        cols={2}
         value={c.split}
         onChange={(v) => set('split', v)}
         options={SPLIT_ORDER.map((k) => ({
@@ -207,6 +208,8 @@ function usePlan(checkIn: CheckIn) {
         functional: functionalFlags(latestFunctional(functionalTests)),
         reassess: reassessDue(functionalTests, checkIn.date),
         program: settings.programStart ? programWeek(settings.programStart, checkIn.date) : undefined,
+        template: settings.splitTemplates[checkIn.split] ?? DEFAULT_TEMPLATES[checkIn.split],
+        weekSets: weeklySetsByMuscle(sessions, weekStart(checkIn.date)),
       }),
     [checkIn, readiness, sessions, settings, customExercises, assessments, profile, functionalTests],
   );

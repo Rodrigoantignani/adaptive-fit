@@ -7,6 +7,7 @@ import { SIDE_LABEL } from './labels';
 import { nextTarget, type Performance } from './progression';
 import { CYCLE_WEEKS, PHASE_INFO, type ProgramWeek } from './periodization';
 import { suggestTechniques } from './techniques';
+import { GROUPS, slotPriority, WEEKLY_SETS_HIGH, type TemplateSlot } from './templates';
 import type {
   CheckIn,
   Exercise,
@@ -31,6 +32,7 @@ const SPLIT_MUSCLES: Record<SplitId, Muscle[] | 'all'> = {
   full_body: 'all',
   upper: ['chest', 'back', 'front_delt', 'side_delt', 'rear_delt', 'biceps', 'triceps', 'forearm', 'core'],
   lower: ['quads', 'hamstrings', 'calves', 'glutes', 'adductors', 'abductors', 'core'],
+  arms_core: ['biceps', 'triceps', 'forearm', 'core', 'calves'],
 };
 
 const PAIR_MUSCLE: Record<string, Muscle> = { biceps: 'biceps', forearm: 'forearm', thigh: 'quads', calf: 'calves' };
@@ -135,6 +137,10 @@ export interface PlanInput {
   reassess?: { due: boolean; days: number | null };
   /** Semana do programa (ciclos de 6 semanas); sem programa, o plano não periodiza. */
   program?: ProgramWeek;
+  /** Montagem do treino (exercícios por grupo, na ordem de prioridade); sem ela, usa as listas dos splits. */
+  template?: TemplateSlot[];
+  /** Séries já feitas na semana por músculo (controle de volume). */
+  weekSets?: Map<Muscle, number>;
 }
 
 export function buildPlan({
@@ -150,6 +156,8 @@ export function buildPlan({
   functional,
   reassess,
   program,
+  template,
+  weekSets,
 }: PlanInput): Plan {
   const byId = new Map(exercises.map((e) => [e.id, e]));
   const { flags, tier } = readiness;
@@ -181,25 +189,75 @@ export function buildPlan({
     perMuscle.set(ex.muscle, (perMuscle.get(ex.muscle) ?? 0) + 1);
   };
   const lastDone = (id: string) => historyFor(id)[0]?.date ?? '';
-  for (const original of candidates) {
-    // Variações que revezam (leg press 45° ↔ horizontal): entra a feita há mais tempo.
+  const isUsed = (id: string) => items.some((i) => i.exerciseId === id);
+  /**
+   * Coloca um exercício no plano: escolhe a variação da vez (revezamento), e se ele não
+   * for seguro hoje, troca por um do mesmo músculo vindo de `subPool`. Retorna se entrou algo.
+   */
+  const place = (original: Exercise, prio: number, subPool: (alt: Exercise) => boolean, checkRoom: boolean): boolean => {
     const partner = original.rotateWith ? byId.get(original.rotateWith) : undefined;
-    const e = partner && !exclusionReason(partner, flags) && lastDone(partner.id) < lastDone(original.id) ? partner : original;
-    if (!roomFor(e)) {
+    const e = partner && !exclusionReason(partner, flags) && !isUsed(partner.id) && lastDone(partner.id) < lastDone(original.id) ? partner : original;
+    if (checkRoom && !roomFor(e)) {
       dropped.push({ exerciseId: e.id, reason: 'músculo já coberto pelos compostos de hoje' });
-      continue;
+      return false;
     }
     const why = exclusionReason(e, flags);
     if (!why) {
-      take(e, original.priority, e !== original ? { notes: [`Revezando com ${original.name}: hoje é a vez desta variação.`] } : {});
-      continue;
+      take(e, prio, e !== original ? { notes: [`Revezando com ${original.name}: hoje é a vez desta variação.`] } : {});
+      return true;
     }
     const sub = exercises.find(
       // Variação de revezamento não serve de substituta: duplicaria o mesmo movimento (dois leg press).
-      (alt) => alt.muscle === e.muscle && !alt.rotateWith && !candidateIds.has(alt.id) && !items.some((i) => i.exerciseId === alt.id) && !exclusionReason(alt, flags),
+      (alt) => alt.muscle === e.muscle && !alt.rotateWith && subPool(alt) && !isUsed(alt.id) && !exclusionReason(alt, flags),
     );
-    if (sub) take(sub, original.priority, { substitutedFor: e.id });
-    else dropped.push({ exerciseId: e.id, reason: why });
+    if (sub) {
+      take(sub, prio, { substitutedFor: e.id });
+      return true;
+    }
+    dropped.push({ exerciseId: e.id, reason: why });
+    return false;
+  };
+
+  if (template) {
+    // Montagem do usuário: N exercícios por grupo, na ordem de prioridade dele.
+    const heavy: string[] = [];
+    template.forEach((slot, index) => {
+      const group = GROUPS[slot.group];
+      const inGroup = (e: Exercise) => group.muscles.includes(e.muscle);
+      const doneThisWeek = group.muscles.reduce((a, m) => a + (weekSets?.get(m) ?? 0), 0);
+      let count = slot.count;
+      if (count > 1 && doneThisWeek >= WEEKLY_SETS_HIGH) {
+        count--;
+        heavy.push(`${group.label.toLowerCase()} (${fmtNum(doneThisWeek)} séries)`);
+      }
+      const prio = slotPriority(index);
+      const byPref = (a: Exercise, b: Exercise) => Number(b.compound) - Number(a.compound) || a.priority - b.priority;
+      const inSplit = exercises.filter((e) => inGroup(e) && e.splits.includes(checkIn.split)).sort(byPref);
+      const offSplit = exercises.filter((e) => inGroup(e) && !e.splits.includes(checkIn.split)).sort(byPref);
+      let n = 0;
+      for (const e of inSplit) {
+        if (n >= count) break;
+        if (isUsed(e.id) || (e.rotateWith && isUsed(e.rotateWith))) continue;
+        if (place(e, prio, (alt) => !alt.splits.includes(checkIn.split), false)) n++;
+      }
+      // Faltou exercício do grupo neste split: completa com os de fora (ex.: tríceps na corda no dia de superior).
+      for (const e of offSplit) {
+        if (n >= count) break;
+        if (isUsed(e.id) || (e.rotateWith && isUsed(e.rotateWith)) || exclusionReason(e, flags)) continue;
+        take(e, prio);
+        n++;
+      }
+    });
+    if (heavy.length) {
+      rules.push({
+        id: 'weekly_volume',
+        tone: 'info',
+        title: 'Volume semanal já alto',
+        detail: `Passou de ~${WEEKLY_SETS_HIGH} séries na semana: ${heavy.join(', ')}. Hoje vai 1 exercício a menos desse grupo; mais volume aí só cobra recuperação.`,
+      });
+    }
+  } else {
+    for (const original of candidates) place(original, original.priority, (alt) => !candidateIds.has(alt.id), true);
   }
 
   // 2. Assimetrias: lado fraco primeiro e, se relevante, unilateral extra
@@ -371,12 +429,16 @@ export function buildPlan({
       const pb = PULL_MUSCLES.includes(byId.get(b.exerciseId)!.muscle);
       return pb && !pa ? [b, a] : [a, b];
     };
+    // O par entra na posição do SEGUNDO: o primeiro desce até ele, nada sobe na frente da prioridade
+    // (ex.: remada desce até o supino; as costas continuam abrindo o treino).
     const ordered: PlannedExercise[] = [];
     for (const it of items) {
       if (ordered.includes(it)) continue;
       const partner = it.supersetWith ? items.find((p) => p.exerciseId === it.supersetWith) : undefined;
-      if (partner && !ordered.includes(partner)) ordered.push(...pullsFirst(it, partner));
-      else ordered.push(it);
+      if (partner && !ordered.includes(partner)) {
+        if (items.indexOf(partner) > items.indexOf(it)) continue;
+        ordered.push(...pullsFirst(partner, it));
+      } else ordered.push(it);
     }
     items = ordered;
 
